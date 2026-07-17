@@ -14,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import type { Config } from './config.js';
+import { Presence } from './presence.js';
 
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -105,6 +106,26 @@ export async function buildServer(cfg: Config): Promise<FastifyInstance> {
     reply.header('Content-Type', 'application/vnd.apple.mpegurl');
     reply.header('Cache-Control', 'no-cache'); // live playlist must never be cached stale
     return reply.send(text);
+  });
+
+  // Live viewer counter. Heartbeats/leaves are POSTs (never CDN-cached) and
+  // marked no-store; the count is held in memory with a TTL. See presence.ts.
+  const presence = new Presence();
+  const isValidId = (id: unknown): id is string =>
+    typeof id === 'string' && id.length > 0 && id.length <= 64;
+
+  app.post('/api/heartbeat', async (req, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const id = (req.body as { id?: unknown } | undefined)?.id;
+    if (!isValidId(id)) return reply.code(400).send({ error: 'invalid id' });
+    return reply.send({ viewers: presence.heartbeat(id) });
+  });
+
+  app.post('/api/leave', async (req, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const id = (req.query as { id?: unknown }).id; // sent via navigator.sendBeacon
+    if (isValidId(id)) presence.leave(id);
+    return reply.send({ ok: true });
   });
 
   const staleMs = Math.max(15000, cfg.hlsSegmentTime * 1000 * 5);

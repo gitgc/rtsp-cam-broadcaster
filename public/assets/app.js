@@ -132,3 +132,72 @@
     showOverlay("Your browser can’t play this stream.");
   }
 })();
+
+/* Live viewer counter: heartbeat every 10s, drop instantly on tab close. */
+(function () {
+  "use strict";
+
+  var viewersEl = document.getElementById("viewers");
+  if (!viewersEl) return;
+
+  var HEARTBEAT_MS = 10000;
+
+  function newId() {
+    return window.crypto && crypto.randomUUID
+      ? crypto.randomUUID()
+      : String(Date.now()) + "-" + String(Math.random()).slice(2);
+  }
+
+  // Persist the id so refreshing or reopening the URL (even in a new tab, since
+  // localStorage is shared across tabs) reuses the same session instead of
+  // counting as a new viewer. One browser = one viewer.
+  function stableId() {
+    var KEY = "cluckcam:viewer-id";
+    try {
+      var existing = localStorage.getItem(KEY);
+      if (existing) return existing;
+      var fresh = newId();
+      localStorage.setItem(KEY, fresh);
+      return fresh;
+    } catch (e) {
+      // Private mode / storage disabled — fall back to a per-load id.
+      return newId();
+    }
+  }
+
+  var id = stableId();
+
+  function render(n) {
+    if (typeof n === "number") viewersEl.textContent = n;
+  }
+
+  function beat() {
+    fetch("/api/heartbeat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: id }),
+      keepalive: true,
+    })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (data) {
+        if (data) render(data.viewers);
+      })
+      .catch(function () {
+        /* transient — next beat will refresh */
+      });
+  }
+
+  beat();
+  setInterval(beat, HEARTBEAT_MS);
+
+  // Leave promptly when the tab is closed/hidden so the count stays honest.
+  window.addEventListener("pagehide", function () {
+    try {
+      navigator.sendBeacon("/api/leave?id=" + encodeURIComponent(id));
+    } catch (e) {
+      /* ignore */
+    }
+  });
+})();

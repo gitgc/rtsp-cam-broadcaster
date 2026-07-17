@@ -104,6 +104,41 @@ body {
   }
 }
 
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.viewers {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.viewers .eye {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.viewers #viewers {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.viewers-label {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
 main {
   flex: 1;
   width: 100%;

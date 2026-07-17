@@ -21,9 +21,16 @@
         <span class="logo" aria-hidden="true">🐔</span>
         <h1>{{TITLE}}</h1>
       </div>
-      <div class="live" id="live" role="status" aria-live="polite">
-        <span class="dot" aria-hidden="true"></span>
-        <span class="live-label">LIVE</span>
+      <div class="status">
+        <div class="live" id="live" role="status" aria-live="polite">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="live-label">LIVE</span>
+        </div>
+        <div class="viewers" id="viewers-wrap" title="People watching right now">
+          <span class="eye" aria-hidden="true">👁</span>
+          <span id="viewers">–</span>
+          <span class="viewers-label">watching</span>
+        </div>
       </div>
     </header>
 
