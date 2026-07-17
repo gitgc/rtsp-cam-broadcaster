@@ -1,0 +1,18 @@
+services:
+  chickencam:
+    build:
+      context: .
+    image: cluckcam:latest
+    container_name: cluckcam
+    restart: unless-stopped
+    env_file: .env
+
+    # HLS segments live in RAM — no disk churn, wiped on restart.
+    tmpfs:
+      - /hls
+
+    # NOTE: no `ports:` on purpose. All inbound traffic arrives through the
+    # Cloudflare Tunnel, so your home server is never directly exposed.
+    # To debug the page locally, uncomment:
+    ports:
+      - "8080:8080"

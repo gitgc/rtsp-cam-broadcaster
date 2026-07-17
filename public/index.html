@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{TITLE}}</title>
+    <meta name="description" content="{{TAGLINE}}" />
+    <meta property="og:title" content="{{TITLE}}" />
+    <meta property="og:description" content="{{TAGLINE}}" />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#0e0f12" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐔</text></svg>"
+    />
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">🐔</span>
+        <h1>{{TITLE}}</h1>
+      </div>
+      <div class="live" id="live" role="status" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="live-label">LIVE</span>
+      </div>
+    </header>
+
+    <main>
+      <div class="player">
+        <video id="video" playsinline autoplay muted controls></video>
+        <div class="overlay" id="overlay">
+          <div class="spinner" aria-hidden="true"></div>
+          <p id="status">Warming up the coop…</p>
+        </div>
+      </div>
+      <p class="tagline">{{TAGLINE}}</p>
+    </main>
+
+    <footer>
+      <p>No chickens were streamed against their will. 🐓</p>
+    </footer>
+
+    <script src="/vendor/hls.min.js"></script>
+    <script src="/assets/app.js"></script>
+  </body>
+</html>
