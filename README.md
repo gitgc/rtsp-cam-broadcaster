@@ -62,9 +62,7 @@ cp .env.example .env
 Minimum required in `.env`:
 
 ```dotenv
-RTSP_URL=rtsp://${FRIGATE_RTSP_USER}:${FRIGATE_RTSP_PASSWORD}@cam.roaming.coia.io:554/cam/realmonitor?channel=1&subtype=0&authbasic=64
-FRIGATE_RTSP_USER=your_user
-FRIGATE_RTSP_PASSWORD=your_password
+RTSP_URL=rtsp://...
 TUNNEL_TOKEN=eyJ...
 ```
 
@@ -191,6 +189,13 @@ compose's `env_file:` injects the vars instead.
 
 ## Notes & hardening
 
+- **Disk / SSD wear.** The only high-volume writes — HLS segments — go to RAM
+  via the `tmpfs: /hls` mount, never the disk. Container logs are the only thing
+  left, and `docker-compose.yml` caps them with the `local` driver
+  (`max-size: 5m`, `max-file: 3` → ~15 MB, rotated in place). The app also
+  throttles repeated failure logging so an outage loop doesn't spew. Docker has
+  no true in-memory log driver; for **zero** log writes to disk, set
+  `logging.driver: none` (you lose `docker compose logs`).
 - The container runs as root for simplicity (no ports are exposed; all ingress
   is via the tunnel). To run non-root, add a user in the `Dockerfile` and mount
   `/hls` as a writable tmpfs for that user.

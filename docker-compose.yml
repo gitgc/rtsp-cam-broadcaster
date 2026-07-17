@@ -1,18 +1,44 @@
+x-default-logging: &default_logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-health-check-defaults: &health_check_defaults
+  interval: 30s
+  timeout: 10s
+  retries: 5
+  start_period: 60s
+
 services:
-  chickencam:
+  cam-broadcaster:
     build:
       context: .
-    image: cluckcam:latest
-    container_name: cluckcam
+    image: cam-broadcaster:latest
+    container_name: cam-broadcaster
     restart: unless-stopped
     env_file: .env
-
-    # HLS segments live in RAM — no disk churn, wiped on restart.
+    # HLS segments — the only high-volume writes — live in RAM here, not on disk.
     tmpfs:
       - /hls
-
-    # NOTE: no `ports:` on purpose. All inbound traffic arrives through the
-    # Cloudflare Tunnel, so your home server is never directly exposed.
-    # To debug the page locally, uncomment:
+    logging:
+      <<: *default_logging
     ports:
       - "8080:8080"
+    labels:
+      autoheal-app: true
+    healthcheck:
+      <<: *health_check_defaults
+      test: [ "CMD", "curl", "-fsS", "http://127.0.0.1:${PORT}/healthz" ]
+
+  autoheal:
+    image: willfarrell/autoheal:latest
+    network_mode: none
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal-app
+    logging:
+      <<: *default_logging
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock

@@ -45,6 +45,7 @@ export class Supervisor {
   private stopping = false;
   private backoffMs: number;
   private startedAt = 0;
+  private failures = 0;
   private restartTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: SupervisorOptions) {
@@ -114,7 +115,7 @@ export class Supervisor {
       return;
     }
 
-    this.log.info(`${this.name}: starting`);
+    this.log.debug(`${this.name}: starting`);
     let child: ChildProcess;
     try {
       child = spawn(this.command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -137,10 +138,21 @@ export class Supervisor {
         this.log.info(`${this.name}: stopped (code=${code ?? ''} signal=${signal ?? ''})`);
         return;
       }
-      this.log.warn(
-        `${this.name}: exited (code=${code ?? ''} signal=${signal ?? ''}) after ${Math.round(uptime / 1000)}s`,
-      );
-      if (uptime >= this.stableMs) this.backoffMs = this.minBackoffMs;
+      if (uptime >= this.stableMs) {
+        this.backoffMs = this.minBackoffMs;
+        this.failures = 0;
+      }
+      this.failures += 1;
+      const detail = `exited (code=${code ?? ''} signal=${signal ?? ''}) after ${Math.round(uptime / 1000)}s`;
+      // Log the first few failures loudly, then throttle: a sustained outage
+      // (camera offline, network down) shouldn't spew identical lines forever.
+      if (this.failures <= 3) {
+        this.log.warn(`${this.name}: ${detail}`);
+      } else if (this.failures % 20 === 0) {
+        this.log.warn(`${this.name}: still failing after ${this.failures} attempts — ${detail}`);
+      } else {
+        this.log.debug(`${this.name}: ${detail}`);
+      }
       this.scheduleRestart();
     });
   }
@@ -156,7 +168,7 @@ export class Supervisor {
   private scheduleRestart(): void {
     if (this.stopping) return;
     const delay = this.backoffMs;
-    this.log.info(`${this.name}: restarting in ${delay}ms`);
+    this.log.debug(`${this.name}: restarting in ${delay}ms`);
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null;
       this.backoffMs = Math.min(this.backoffMs * 2, this.maxBackoffMs);

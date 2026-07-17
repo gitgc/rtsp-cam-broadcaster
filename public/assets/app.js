@@ -6,8 +6,10 @@
   "use strict";
 
   var STREAM_URL = "/hls/stream.m3u8";
-  var SOFT_FREEZE_MS = 2500; // show a quiet "Buffering…" after this long frozen
-  var HARD_FREEZE_MS = 6000; // escalate + actively recover after this long
+  var SOFT_FREEZE_MS = 3000; // show a quiet "Buffering…" after this long frozen
+  var HARD_FREEZE_MS = 10000; // escalate to "Reconnecting…" + recover only after a
+  // real, sustained stall — mobile/cellular rebuffers of a few seconds are normal
+  // and self-heal, so we don't want to alarm on them.
 
   var video = document.getElementById("video");
   var overlay = document.getElementById("overlay");

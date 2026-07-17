@@ -13,7 +13,15 @@ export function createTunnelSupervisor(cfg: Config, logger: FastifyBaseLogger): 
     name: 'cloudflared',
     command: 'cloudflared',
     // The token itself is never logged (Supervisor logs "starting", not args).
-    getArgs: () => ['tunnel', '--no-autoupdate', 'run', '--token', cfg.tunnelToken],
+    getArgs: () => [
+      'tunnel',
+      '--no-autoupdate',
+      'run',
+      '--protocol',
+      cfg.tunnelProtocol,
+      '--token',
+      cfg.tunnelToken,
+    ],
     logger,
     minBackoffMs: 2000,
     maxBackoffMs: 30000,

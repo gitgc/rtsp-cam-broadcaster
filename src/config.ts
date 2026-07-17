@@ -13,6 +13,7 @@ export interface Config {
   rtspUrl: string;
   rtspTransport: string;
   tunnelToken: string;
+  tunnelProtocol: string;
   hlsDir: string;
   hlsSegmentTime: number;
   hlsListSize: number;
@@ -92,6 +93,10 @@ export function loadConfig(): Config {
     rtspUrl,
     rtspTransport: optional('RTSP_TRANSPORT', 'tcp'),
     tunnelToken: required('TUNNEL_TOKEN'),
+    // http2 (plain TCP 443) is the most firewall-friendly default. Many home
+    // networks block outbound UDP :7844, which makes the default QUIC transport
+    // fail its handshake and the tunnel never connects.
+    tunnelProtocol: optional('TUNNEL_PROTOCOL', 'http2'),
     // Docker sets HLS_DIR=/hls (a writable tmpfs). Locally, default to a
     // writable temp dir — a plain user can't create /hls on macOS/Linux.
     hlsDir: optional('HLS_DIR', path.join(os.tmpdir(), 'cluckcam-hls')),

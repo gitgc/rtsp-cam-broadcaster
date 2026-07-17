@@ -84,6 +84,29 @@ export async function buildServer(cfg: Config): Promise<FastifyInstance> {
     return reply.send(page);
   });
 
+  // Serve the live playlist with a spec-compliant TARGETDURATION. With -c copy
+  // we can only cut on camera keyframes, so segments run slightly over the
+  // rounded target (e.g. 4.04s vs TARGETDURATION:4) — which iOS's strict native
+  // HLS player rejects, causing constant "reconnecting". Segments are untouched;
+  // we just raise the declared target to ceil(longest segment). This exact route
+  // takes precedence over the /hls/* static handler for the playlist only.
+  app.get('/hls/stream.m3u8', async (_req, reply) => {
+    let text: string;
+    try {
+      text = await readFile(path.join(cfg.hlsDir, 'stream.m3u8'), 'utf8');
+    } catch {
+      return reply.code(404).header('Cache-Control', 'no-store').send('playlist not ready\n');
+    }
+    const durations = [...text.matchAll(/#EXTINF:([\d.]+)/g)].map((m) => parseFloat(m[1] ?? '0'));
+    if (durations.length > 0) {
+      const compliant = Math.ceil(Math.max(...durations));
+      text = text.replace(/#EXT-X-TARGETDURATION:\d+/, `#EXT-X-TARGETDURATION:${compliant}`);
+    }
+    reply.header('Content-Type', 'application/vnd.apple.mpegurl');
+    reply.header('Cache-Control', 'no-cache'); // live playlist must never be cached stale
+    return reply.send(text);
+  });
+
   const staleMs = Math.max(15000, cfg.hlsSegmentTime * 1000 * 5);
   app.get('/healthz', async (_req, reply) => {
     const playlist = path.join(cfg.hlsDir, 'stream.m3u8');
