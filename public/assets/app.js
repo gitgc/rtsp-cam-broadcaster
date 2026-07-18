@@ -201,3 +201,83 @@
     }
   });
 })();
+
+/* "Recently spotted" — poll Frigate detections and render snapshot cards. */
+(function () {
+  "use strict";
+
+  var section = document.getElementById("sightings");
+  var grid = document.getElementById("sightings-grid");
+  if (!section || !grid) return;
+
+  var POLL_MS = 20000;
+  var EMOJI = {
+    bear: "🐻", deer: "🦌", dog: "🐕", cat: "🐈", bird: "🐦",
+    raccoon: "🦝", fox: "🦊", squirrel: "🐿️", rabbit: "🐇",
+  };
+
+  function titleCase(s) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  function ago(ms) {
+    if (!ms) return "recently";
+    var s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+    if (s < 60) return s + "s ago";
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + "m ago";
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + "h ago";
+    return Math.floor(h / 24) + "d ago";
+  }
+
+  function render(items) {
+    if (!items || !items.length) {
+      section.hidden = true;
+      return;
+    }
+    section.hidden = false;
+    grid.textContent = "";
+    items.forEach(function (d) {
+      var card = document.createElement("figure");
+      card.className = "sighting";
+
+      var img = document.createElement("img");
+      img.loading = "lazy";
+      img.alt = titleCase(d.label);
+      img.src = d.image;
+
+      var cap = document.createElement("figcaption");
+      var name = document.createElement("span");
+      name.className = "sighting-name";
+      name.textContent = (EMOJI[d.label] || "🐾") + " " + titleCase(d.label);
+
+      var when = document.createElement("time");
+      when.className = "sighting-time";
+      when.textContent = ago(d.lastSeen);
+      if (d.lastSeen) when.title = new Date(d.lastSeen).toLocaleString();
+
+      cap.appendChild(name);
+      cap.appendChild(when);
+      card.appendChild(img);
+      card.appendChild(cap);
+      grid.appendChild(card);
+    });
+  }
+
+  function poll() {
+    fetch("/api/detections", { cache: "no-store" })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (data) {
+        if (data) render(data.detections);
+      })
+      .catch(function () {
+        /* transient */
+      });
+  }
+
+  poll();
+  setInterval(poll, POLL_MS);
+})();

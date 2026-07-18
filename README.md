@@ -138,6 +138,33 @@ Player-side tuning (buffer sizes, freeze thresholds) lives in
 
 ---
 
+## Recently-spotted animals (Frigate over MQTT)
+
+If you run [Frigate](https://frigate.video), the page can show the latest
+snapshot of each animal it detects. Set `MQTT_HOST` (and the other `MQTT_*` vars)
+in `.env` to enable it — leave it blank and the whole feature is off.
+
+How it works: the app subscribes to your broker's `frigate/events` (for the
+label + timestamp) and `frigate/<camera>/<label>/snapshot` (the retained best
+JPEG), keeps the latest per label in memory, and renders a **"Recently spotted"**
+grid under the video. Everything rides the MQTT connection — no HTTP calls back
+to Frigate, no disk writes.
+
+| Variable            | Default                          | Description                                          |
+| ------------------- | -------------------------------- | ---------------------------------------------------- |
+| `MQTT_HOST`         | – (blank disables the feature)   | Frigate broker host.                                 |
+| `MQTT_PORT`         | `1883`                           | Broker port.                                         |
+| `MQTT_USERNAME`     | –                                | Broker username (optional).                          |
+| `MQTT_PASSWORD`     | –                                | Broker password (optional).                          |
+| `MQTT_TLS`          | `false`                          | Use `mqtts://`.                                      |
+| `MQTT_TOPIC_PREFIX` | `frigate`                        | Frigate's MQTT topic prefix.                         |
+| `FRIGATE_CAMERA`    | – (any camera)                   | Restrict to one Frigate camera name.                 |
+| `FRIGATE_LABELS`    | `bear,deer,dog,…,rabbit`         | Object labels to surface.                            |
+
+Requires Frigate with **snapshots + MQTT enabled**. If the broker is
+unreachable the app just retries in the background — the rest of the stream is
+unaffected.
+
 ## How it stays alive
 
 - **ffmpeg** and **cloudflared** are each supervised: if either dies, it's

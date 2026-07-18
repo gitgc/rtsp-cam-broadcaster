@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import type { Config } from './config.js';
 import { Presence } from './presence.js';
+import type { DetectionSource } from './frigate.js';
 
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -27,7 +28,10 @@ function escapeHtml(value: string): string {
   );
 }
 
-export async function buildServer(cfg: Config): Promise<FastifyInstance> {
+export async function buildServer(
+  cfg: Config,
+  getDetections?: () => DetectionSource | undefined,
+): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: cfg.logLevel }, trustProxy: true });
 
   // Page assets (styles.css, app.js).
@@ -126,6 +130,32 @@ export async function buildServer(cfg: Config): Promise<FastifyInstance> {
     const id = (req.query as { id?: unknown }).id; // sent via navigator.sendBeacon
     if (isValidId(id)) presence.leave(id);
     return reply.send({ ok: true });
+  });
+
+  // Frigate detections: the last-seen animals + their snapshots. Populated only
+  // when MQTT is configured; otherwise these return an empty list / 404.
+  const knownLabels = new Set(cfg.frigate.labels);
+
+  app.get('/api/detections', async (_req, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const items = (getDetections?.()?.list() ?? []).map((d) => ({
+      label: d.label,
+      camera: d.camera,
+      lastSeen: d.lastSeen || null,
+      score: d.score || null,
+      image: `/api/detections/${encodeURIComponent(d.label)}/snapshot.jpg?ts=${d.imageAt ?? 0}`,
+    }));
+    return reply.send({ detections: items });
+  });
+
+  app.get('/api/detections/:label/snapshot.jpg', async (req, reply) => {
+    const label = String((req.params as { label: string }).label).toLowerCase();
+    if (!knownLabels.has(label)) return reply.code(404).send('unknown label');
+    const image = getDetections?.()?.getImage(label);
+    if (!image) return reply.code(404).send('no snapshot yet');
+    reply.header('Content-Type', 'image/jpeg');
+    reply.header('Cache-Control', 'no-cache');
+    return reply.send(image);
   });
 
   const staleMs = Math.max(15000, cfg.hlsSegmentTime * 1000 * 5);

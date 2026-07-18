@@ -22,6 +22,14 @@ function makeCfg(hlsDir: string): Config {
     streamTagline: 'Live from the coop',
     logLevel: 'silent',
     ffmpegExtraArgs: [],
+    frigate: {
+      enabled: false,
+      host: '',
+      port: 1883,
+      tls: false,
+      topicPrefix: 'frigate',
+      labels: ['bear', 'deer', 'dog', 'cat', 'bird', 'raccoon', 'fox', 'squirrel', 'rabbit'],
+    },
   };
 }
 
@@ -108,5 +116,62 @@ describe('server routes', () => {
     await app.inject({ method: 'POST', url: '/api/leave?id=a' });
     const res = await app.inject({ method: 'POST', url: '/api/heartbeat', payload: { id: 'b' } });
     assert.equal(res.json().viewers, 1); // only b remains
+  });
+
+  it('detections list is empty and snapshots 404 with no source configured', async () => {
+    const list = await app.inject({ method: 'GET', url: '/api/detections' });
+    assert.equal(list.statusCode, 200);
+    assert.equal(list.headers['cache-control'], 'no-store');
+    assert.deepEqual(list.json().detections, []);
+
+    const img = await app.inject({ method: 'GET', url: '/api/detections/deer/snapshot.jpg' });
+    assert.equal(img.statusCode, 404);
+  });
+});
+
+describe('detection routes with a source', () => {
+  let dir: string;
+  let app: FastifyInstance;
+  const jpeg = Buffer.from('JPEGDATA');
+  const source = {
+    list: () => [
+      { label: 'deer', camera: 'roaming', lastSeen: 1700000000000, score: 0.9, image: jpeg, imageAt: 42 },
+    ],
+    getImage: (label: string) => (label === 'deer' ? jpeg : undefined),
+  };
+
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'cluckcam-test-'));
+    app = await buildServer(makeCfg(dir), () => source);
+    await app.ready();
+  });
+  afterEach(async () => {
+    await app.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('lists detections with a cache-busting image URL', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/detections' });
+    assert.equal(res.statusCode, 200);
+    const body = res.json();
+    assert.equal(body.detections.length, 1);
+    assert.equal(body.detections[0].label, 'deer');
+    assert.match(body.detections[0].image, /\/api\/detections\/deer\/snapshot\.jpg\?ts=42/);
+  });
+
+  it('serves the snapshot image for a known label', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/detections/deer/snapshot.jpg' });
+    assert.equal(res.statusCode, 200);
+    assert.match(String(res.headers['content-type']), /image\/jpeg/);
+    assert.equal(res.headers['cache-control'], 'no-cache');
+    assert.equal(res.rawPayload.toString(), 'JPEGDATA');
+  });
+
+  it('404s an unknown label and a label with no image yet', async () => {
+    const unknown = await app.inject({ method: 'GET', url: '/api/detections/person/snapshot.jpg' });
+    assert.equal(unknown.statusCode, 404); // not in the configured label set
+
+    const noImage = await app.inject({ method: 'GET', url: '/api/detections/bear/snapshot.jpg' });
+    assert.equal(noImage.statusCode, 404); // known label, but source has no image
   });
 });

@@ -8,6 +8,21 @@
 import os from 'node:os';
 import path from 'node:path';
 
+export interface FrigateSettings {
+  /** True when MQTT_HOST is set — the whole feature is off otherwise. */
+  enabled: boolean;
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  tls: boolean;
+  topicPrefix: string;
+  /** Restrict to one Frigate camera; undefined = any camera on the broker. */
+  camera?: string;
+  /** Object labels to surface on the page. */
+  labels: string[];
+}
+
 export interface Config {
   port: number;
   rtspUrl: string;
@@ -22,6 +37,27 @@ export interface Config {
   streamTagline: string;
   logLevel: string;
   ffmpegExtraArgs: string[];
+  frigate: FrigateSettings;
+}
+
+const DEFAULT_LABELS = 'bear,deer,dog,cat,bird,raccoon,fox,squirrel,rabbit';
+
+function parseFrigate(): FrigateSettings {
+  const host = optional('MQTT_HOST', '').trim();
+  return {
+    enabled: host !== '',
+    host,
+    port: numeric('MQTT_PORT', 1883),
+    username: optional('MQTT_USERNAME', '').trim() || undefined,
+    password: optional('MQTT_PASSWORD', '') || undefined,
+    tls: boolean('MQTT_TLS', false),
+    topicPrefix: optional('MQTT_TOPIC_PREFIX', 'frigate').replace(/\/+$/, ''),
+    camera: optional('FRIGATE_CAMERA', '').trim() || undefined,
+    labels: optional('FRIGATE_LABELS', DEFAULT_LABELS)
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  };
 }
 
 function required(name: string): string {
@@ -107,5 +143,6 @@ export function loadConfig(): Config {
     streamTagline: optional('STREAM_TAGLINE', 'Live from the coop 🐔'),
     logLevel: optional('LOG_LEVEL', 'info'),
     ffmpegExtraArgs: extra ? extra.split(/\s+/) : [],
+    frigate: parseFrigate(),
   };
 }

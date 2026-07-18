@@ -7,6 +7,8 @@ const APP_VARS = [
   'RTSP_URL', 'TUNNEL_TOKEN', 'PORT', 'HLS_DIR', 'HLS_SEGMENT_TIME', 'HLS_LIST_SIZE',
   'ENABLE_AUDIO', 'RTSP_TRANSPORT', 'TUNNEL_PROTOCOL', 'STREAM_TITLE', 'STREAM_TAGLINE',
   'LOG_LEVEL', 'FFMPEG_EXTRA_ARGS', 'CAM_USER', 'CAM_PASS', 'FOO', 'NOPE',
+  'MQTT_HOST', 'MQTT_PORT', 'MQTT_USERNAME', 'MQTT_PASSWORD', 'MQTT_TLS',
+  'MQTT_TOPIC_PREFIX', 'FRIGATE_CAMERA', 'FRIGATE_LABELS',
 ];
 
 function resetEnv(): void {
@@ -103,5 +105,30 @@ describe('loadConfig', () => {
     assert.equal(cfg.enableAudio, true);
     assert.equal(cfg.port, 9000);
     assert.equal(cfg.hlsListSize, 12);
+  });
+
+  it('leaves Frigate disabled unless MQTT_HOST is set', () => {
+    process.env.RTSP_URL = 'rtsp://host/1';
+    process.env.TUNNEL_TOKEN = 't';
+    const cfg = loadConfig();
+    assert.equal(cfg.frigate.enabled, false);
+    assert.deepEqual(cfg.frigate.labels, [
+      'bear', 'deer', 'dog', 'cat', 'bird', 'raccoon', 'fox', 'squirrel', 'rabbit',
+    ]);
+  });
+
+  it('enables Frigate and parses MQTT settings when MQTT_HOST is set', () => {
+    process.env.RTSP_URL = 'rtsp://host/1';
+    process.env.TUNNEL_TOKEN = 't';
+    process.env.MQTT_HOST = 'nvr.coia.io';
+    process.env.MQTT_PORT = '1833';
+    process.env.FRIGATE_CAMERA = 'roaming';
+    process.env.FRIGATE_LABELS = 'Bear, Fox ,rabbit';
+    const cfg = loadConfig();
+    assert.equal(cfg.frigate.enabled, true);
+    assert.equal(cfg.frigate.host, 'nvr.coia.io');
+    assert.equal(cfg.frigate.port, 1833);
+    assert.equal(cfg.frigate.camera, 'roaming');
+    assert.deepEqual(cfg.frigate.labels, ['bear', 'fox', 'rabbit']); // trimmed + lowercased
   });
 });
