@@ -113,7 +113,7 @@ describe('loadConfig', () => {
     const cfg = loadConfig();
     assert.equal(cfg.frigate.enabled, false);
     assert.deepEqual(cfg.frigate.labels, [
-      'bear', 'deer', 'dog', 'cat', 'bird', 'raccoon', 'fox', 'squirrel', 'rabbit',
+      'bear', 'deer', 'dog', 'cat', 'bird', 'raccoon', 'fox', 'squirrel', 'rabbit', 'person',
     ]);
   });
 

@@ -40,7 +40,7 @@ export interface Config {
   frigate: FrigateSettings;
 }
 
-const DEFAULT_LABELS = 'bear,deer,dog,cat,bird,raccoon,fox,squirrel,rabbit';
+const DEFAULT_LABELS = 'bear,deer,dog,cat,bird,raccoon,fox,squirrel,rabbit,person';
 
 function parseFrigate(): FrigateSettings {
   const host = optional('MQTT_HOST', '').trim();

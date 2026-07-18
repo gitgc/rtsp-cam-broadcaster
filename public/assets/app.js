@@ -211,9 +211,49 @@
   if (!section || !grid) return;
 
   var POLL_MS = 20000;
+
+  // Click-to-enlarge lightbox, built once and shared by every card.
+  var opener = null;
+  var lb = document.createElement("div");
+  lb.className = "lightbox";
+  lb.hidden = true;
+  lb.innerHTML =
+    '<button class="lightbox-close" type="button" aria-label="Close">&times;</button>' +
+    '<figure class="lightbox-inner">' +
+    '<img class="lightbox-img" alt="">' +
+    '<figcaption class="lightbox-cap"><span class="lightbox-name"></span><time class="lightbox-time"></time></figcaption>' +
+    "</figure>";
+  document.body.appendChild(lb);
+  var lbImg = lb.querySelector(".lightbox-img");
+  var lbName = lb.querySelector(".lightbox-name");
+  var lbTime = lb.querySelector(".lightbox-time");
+  var lbClose = lb.querySelector(".lightbox-close");
+
+  function openLightbox(d, name, from) {
+    opener = from || null;
+    lbImg.src = d.image; // same URL as the card — already cached, so instant
+    lbImg.alt = name;
+    lbName.textContent = name;
+    lbTime.textContent = d.lastSeen ? new Date(d.lastSeen).toLocaleString() : "spotted recently";
+    lb.hidden = false;
+    lbClose.focus();
+  }
+  function closeLightbox() {
+    lb.hidden = true;
+    lbImg.removeAttribute("src");
+    if (opener && opener.focus) opener.focus();
+    opener = null;
+  }
+  lbClose.addEventListener("click", closeLightbox);
+  lb.addEventListener("click", function (e) {
+    if (e.target === lb) closeLightbox(); // click the backdrop, not the image
+  });
+  document.addEventListener("keydown", function (e) {
+    if (!lb.hidden && (e.key === "Escape" || e.key === "Esc")) closeLightbox();
+  });
   var EMOJI = {
     bear: "🐻", deer: "🦌", dog: "🐕", cat: "🐈", bird: "🐦",
-    raccoon: "🦝", fox: "🦊", squirrel: "🐿️", rabbit: "🐇",
+    raccoon: "🦝", fox: "🦊", squirrel: "🐿️", rabbit: "🐇", person: "🧍",
   };
 
   function titleCase(s) {
@@ -239,8 +279,13 @@
     section.hidden = false;
     grid.textContent = "";
     items.forEach(function (d) {
+      var fullName = (EMOJI[d.label] || "🐾") + " " + titleCase(d.label);
+
       var card = document.createElement("figure");
       card.className = "sighting";
+      card.tabIndex = 0;
+      card.setAttribute("role", "button");
+      card.setAttribute("aria-label", "Enlarge " + titleCase(d.label) + " snapshot");
 
       var img = document.createElement("img");
       img.loading = "lazy";
@@ -250,7 +295,7 @@
       var cap = document.createElement("figcaption");
       var name = document.createElement("span");
       name.className = "sighting-name";
-      name.textContent = (EMOJI[d.label] || "🐾") + " " + titleCase(d.label);
+      name.textContent = fullName;
 
       var when = document.createElement("time");
       when.className = "sighting-time";
@@ -261,6 +306,17 @@
       cap.appendChild(when);
       card.appendChild(img);
       card.appendChild(cap);
+
+      card.addEventListener("click", function () {
+        openLightbox(d, fullName, card);
+      });
+      card.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openLightbox(d, fullName, card);
+        }
+      });
+
       grid.appendChild(card);
     });
   }
