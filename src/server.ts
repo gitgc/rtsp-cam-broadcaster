@@ -34,6 +34,21 @@ export async function buildServer(
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: cfg.logLevel }, trustProxy: true });
 
+  // Presence beacons (navigator.sendBeacon) and keepalive fetches can arrive
+  // with a Content-Type Fastify's built-in parsers reject (form-urlencoded,
+  // octet-stream) or none at all, which would 415. These endpoints only need the
+  // id from the query or a JSON body, so parse leniently rather than rejecting.
+  const parseJsonish = (_req: unknown, body: string, done: (err: Error | null, value?: unknown) => void) => {
+    if (!body) return done(null, {});
+    try {
+      done(null, JSON.parse(body));
+    } catch {
+      done(null, {});
+    }
+  };
+  app.addContentTypeParser('text/plain', { parseAs: 'string' }, parseJsonish);
+  app.addContentTypeParser('*', { parseAs: 'string' }, parseJsonish);
+
   // Page assets (styles.css, app.js).
   // `cacheControl: false` so our setHeaders owns the Cache-Control value
   // instead of @fastify/static writing its own (default max-age=0).
@@ -108,13 +123,18 @@ export async function buildServer(
       text = text.replace(/#EXT-X-TARGETDURATION:\d+/, `#EXT-X-TARGETDURATION:${compliant}`);
     }
     reply.header('Content-Type', 'application/vnd.apple.mpegurl');
-    reply.header('Cache-Control', 'no-cache'); // live playlist must never be cached stale
+    // NEVER cache the live playlist. Even a couple of seconds of edge/browser
+    // staleness can leave the player without the newest segment, so it drains
+    // its buffer and stalls ("plays ~15s then reconnecting"). It's tiny anyway;
+    // the bandwidth win is the immutable segments/images, which ARE cached.
+    reply.header('Cache-Control', 'no-store');
     return reply.send(text);
   });
 
   // Live viewer counter. Heartbeats/leaves are POSTs (never CDN-cached) and
   // marked no-store; the count is held in memory with a TTL. See presence.ts.
-  const presence = new Presence();
+  // TTL is ~2.5x the client heartbeat interval (20s) so a missed beat is fine.
+  const presence = new Presence(50000);
   const isValidId = (id: unknown): id is string =>
     typeof id === 'string' && id.length > 0 && id.length <= 64;
 
@@ -137,6 +157,8 @@ export async function buildServer(
   const knownLabels = new Set(cfg.frigate.labels);
 
   app.get('/api/detections', async (_req, reply) => {
+    // Tiny JSON, polled every 30s — keep it fresh (not cached) so new sightings
+    // appear promptly. The heavy part, the snapshot images, IS edge-cached.
     reply.header('Cache-Control', 'no-store');
     const items = (getDetections?.()?.list() ?? []).map((d) => ({
       label: d.label,
@@ -154,7 +176,9 @@ export async function buildServer(
     const image = getDetections?.()?.getImage(label);
     if (!image) return reply.code(404).send('no snapshot yet');
     reply.header('Content-Type', 'image/jpeg');
-    reply.header('Cache-Control', 'no-cache');
+    // The URL's ?ts changes whenever the image does, so each version is
+    // immutable — the edge serves it and origin sends each snapshot just once.
+    reply.header('Cache-Control', 'public, max-age=31536000, immutable');
     return reply.send(image);
   });
 

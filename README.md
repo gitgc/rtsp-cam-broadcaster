@@ -98,18 +98,35 @@ All via environment variables (see [.env.example](.env.example)):
 
 ---
 
-## Recommended: cache segments at the edge
+## Recommended: let Cloudflare bear the load
 
-The app already sends cache-friendly headers (`.ts` = immutable/long,
-`.m3u8` = 1s). To make Cloudflare actually honor them and shield your home
-connection under load, add a **Cache Rule**:
+Only the **immutable** resources — the ones with a unique URL per version — are
+edge-cached, so Cloudflare serves them and origin sends each one just once:
 
-- Cloudflare dashboard → your domain → **Caching** → **Cache Rules** → **Create**
-- **If** URI Path ends with `.ts` → **Then** Eligible for cache, Edge TTL "Use
-  cache-control header if present".
+- `/hls/*.ts` — segments (unique filenames).
+- `/api/detections/*/snapshot.jpg` — snapshots (the URL carries a `?ts`).
+- `/vendor/hls.min.js` — the 543 KB player.
 
-Now a thousand viewers mostly hit Cloudflare, and your camera only feeds one
-ffmpeg pull regardless.
+The **live playlist** (`stream.m3u8`) and the small detections JSON are sent
+`no-store` **on purpose**. A live playlist that's even slightly stale leaves the
+player without its next segment, so it drains its buffer and stalls after ~15s
+("reconnecting"). They're tiny and polled only a few times a minute, so serving
+them fresh from origin is cheap.
+
+Cloudflare caches `.jpg` and `.js` by default (given the immutable headers), but
+**not `.ts`** — add a Cache Rule for that (segments are your real bandwidth):
+
+- Cloudflare dashboard → your domain → **Caching → Cache Rules → Create**
+- **If** `URI Path` **ends with** `.ts`
+- **Then** Cache eligibility → **Eligible for cache**; Edge TTL → **Use cache-control header if present**
+
+> ⚠️ If you added an earlier rule matching all of `/hls/`, **narrow it to `.ts`**.
+> Caching `.m3u8` is what causes the ~15s "reconnecting" stall.
+
+With that, segment bandwidth (the bulk) is served by the edge regardless of
+viewer count. The only per-viewer origin traffic left is the `/api/heartbeat`
+POST — live presence can't be cached — now one small POST every 20s that
+**pauses while the tab is backgrounded**.
 
 ---
 

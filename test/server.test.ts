@@ -73,7 +73,7 @@ describe('server routes', () => {
     const res = await app.inject({ method: 'GET', url: '/hls/stream.m3u8' });
     assert.equal(res.statusCode, 200);
     assert.match(String(res.headers['content-type']), /vnd\.apple\.mpegurl/);
-    assert.equal(res.headers['cache-control'], 'no-cache');
+    assert.equal(res.headers['cache-control'], 'no-store'); // live playlist never cached
     assert.match(res.body, /#EXT-X-TARGETDURATION:5/);
     assert.doesNotMatch(res.body, /#EXT-X-TARGETDURATION:4/);
   });
@@ -108,6 +108,29 @@ describe('server routes', () => {
   it('rejects a heartbeat with a missing/invalid id', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/heartbeat', payload: {} });
     assert.equal(res.statusCode, 400);
+  });
+
+  it('accepts presence POSTs with odd/absent Content-Type (no 415)', async () => {
+    // A JSON body with no Content-Type header (fetch keepalive / iOS quirk).
+    const noCt = await app.inject({
+      method: 'POST',
+      url: '/api/heartbeat',
+      payload: '{"id":"beacon"}',
+    });
+    assert.equal(noCt.statusCode, 200);
+    assert.equal(noCt.json().viewers, 1);
+
+    // sendBeacon can send form-urlencoded / octet-stream — /api/leave reads the
+    // query, so the body is irrelevant and must not 415.
+    for (const ct of ['application/x-www-form-urlencoded', 'application/octet-stream']) {
+      const leave = await app.inject({
+        method: 'POST',
+        url: '/api/leave?id=beacon',
+        headers: { 'content-type': ct },
+        payload: 'anything',
+      });
+      assert.equal(leave.statusCode, 200);
+    }
   });
 
   it('POST /api/leave drops a session', async () => {
@@ -163,7 +186,7 @@ describe('detection routes with a source', () => {
     const res = await app.inject({ method: 'GET', url: '/api/detections/deer/snapshot.jpg' });
     assert.equal(res.statusCode, 200);
     assert.match(String(res.headers['content-type']), /image\/jpeg/);
-    assert.equal(res.headers['cache-control'], 'no-cache');
+    assert.match(String(res.headers['cache-control']), /immutable/);
     assert.equal(res.rawPayload.toString(), 'JPEGDATA');
   });
 

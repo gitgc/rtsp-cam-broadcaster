@@ -140,7 +140,7 @@
   var viewersEl = document.getElementById("viewers");
   if (!viewersEl) return;
 
-  var HEARTBEAT_MS = 10000;
+  var HEARTBEAT_MS = 20000;
 
   function newId() {
     return window.crypto && crypto.randomUUID
@@ -172,6 +172,7 @@
   }
 
   function beat() {
+    if (document.hidden) return; // a backgrounded tab isn't really watching
     fetch("/api/heartbeat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -191,6 +192,10 @@
 
   beat();
   setInterval(beat, HEARTBEAT_MS);
+  // Refresh promptly when the tab comes back to the foreground.
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) beat();
+  });
 
   // Leave promptly when the tab is closed/hidden so the count stays honest.
   window.addEventListener("pagehide", function () {
@@ -210,7 +215,7 @@
   var grid = document.getElementById("sightings-grid");
   if (!section || !grid) return;
 
-  var POLL_MS = 20000;
+  var POLL_MS = 30000;
 
   // Click-to-enlarge lightbox, built once and shared by every card.
   var opener = null;
@@ -322,7 +327,8 @@
   }
 
   function poll() {
-    fetch("/api/detections", { cache: "no-store" })
+    if (document.hidden) return; // don't poll from a backgrounded tab
+    fetch("/api/detections")
       .then(function (r) {
         return r.ok ? r.json() : null;
       })
@@ -336,4 +342,7 @@
 
   poll();
   setInterval(poll, POLL_MS);
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) poll();
+  });
 })();
