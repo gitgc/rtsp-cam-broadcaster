@@ -168,7 +168,10 @@ different file with `ENV_FILE=path/to/other.env`. In Docker there's no `.env` â€
 compose's `env_file:` injects the vars instead.
 
 `npm run build` compiles to `dist/`; `npm start` runs the compiled app;
-`npm run typecheck` type-checks without emitting.
+`npm run typecheck` type-checks without emitting; `npm test` runs the unit
+suite (Node's built-in test runner via `tsx` â€” no extra dependency) covering
+config parsing/redaction, the presence counter, and the HTTP routes (including
+the iOS `TARGETDURATION` rewrite and cache headers).
 
 ---
 
