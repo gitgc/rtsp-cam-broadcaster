@@ -1,19 +1,28 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
-    "outDir": "dist",
-    "rootDir": "src",
+    // ES2023 lib (not target) for Array#toSorted etc. — available on Node 20+
+    // and in every browser this app supports.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node", "@vitest/browser-playwright/context"],
+
+    // Editor/typecheck config for the whole repo (server + client + tooling).
+    // The production server build overrides module resolution — see
+    // tsconfig.server.json.
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "noEmit": true,
+
     "strict": true,
     "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "declaration": false,
-    "sourceMap": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "vitest.config.ts"]
 }

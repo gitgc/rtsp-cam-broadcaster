@@ -1,14 +1,20 @@
 # syntax=docker/dockerfile:1
 
-# ── Build stage: compile TypeScript, then prune to production deps ────────────
+# ── Build stage: bundle the React client + compile the server, then prune ─────
 FROM node:22-alpine AS builder
 WORKDIR /app
+
+# Playwright is a devDependency (browser tests only) and its postinstall would
+# otherwise pull ~150MB of browsers into a stage that never runs them.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 COPY package.json package-lock.json* ./
 RUN npm install
 
-COPY tsconfig.json ./
+COPY tsconfig.json tsconfig.server.json vite.config.ts ./
 COPY src ./src
+# vite build -> dist/client (hashed JS/CSS + index.html)
+# tsc        -> dist/server + dist/shared
 RUN npm run build && npm prune --omit=dev
 
 # ── Runtime stage ────────────────────────────────────────────────────────────
@@ -47,10 +53,11 @@ RUN set -eux; \
     chmod +x /usr/local/bin/cloudflared; \
     /usr/local/bin/cloudflared --version
 
+# dist/client is the built front-end; the server reads index.html from there and
+# serves dist/client/assets at /assets. No separate public/ directory any more.
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY package.json ./
-COPY public ./public
 
 RUN mkdir -p "$HLS_DIR"
 
@@ -61,4 +68,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 # tini reaps the ffmpeg/cloudflared children and forwards signals to node.
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/server/index.js"]

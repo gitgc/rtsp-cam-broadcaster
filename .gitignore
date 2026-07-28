@@ -1,5 +1,9 @@
 node_modules/
 dist/
+coverage/
+# Screenshots Vitest browser mode writes when a component test fails.
+.vitest-attachments/
+**/__screenshots__/
 .hls/
 .env
 .env.local

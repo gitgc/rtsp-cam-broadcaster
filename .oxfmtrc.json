@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "tabWidth": 2,
+  "semi": false,
+  "singleQuote": true,
+  "jsxSingleQuote": false,
+  "trailingComma": "all",
+  "bracketSpacing": true,
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "insertFinalNewline": true,
+  "ignorePatterns": [
+    "dist/**",
+    "node_modules/**",
+    // Deployment config — a formatter rewriting YAML quoting here is pure
+    // review noise, so compose/CI files are left exactly as authored.
+    "**/*.yml",
+    "**/*.yaml"
+  ]
+}

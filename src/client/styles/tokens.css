@@ -1,0 +1,16 @@
+/* Design tokens. Every component stylesheet reads colours and radii from here,
+   so a re-theme is a single-file change. */
+:root {
+  --bg: #0e0f12;
+  --bg-2: #16181d;
+  --panel: #1c1f26;
+  --border: #2a2e37;
+  --border-hover: #3a3f4b;
+  --text: #eef0f4;
+  --muted: #9aa1ad;
+  --accent: #f6a821; /* warm chicken-feather amber */
+  --live: #ff4d4d;
+  --radius: 16px;
+  --radius-sm: 12px;
+  --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
