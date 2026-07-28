@@ -1,0 +1,59 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "promise"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "warn"
+  },
+  "env": {
+    "es2024": true
+  },
+  "ignorePatterns": ["dist/**", "node_modules/**", "coverage/**"],
+  "rules": {
+    "eqeqeq": "error",
+    "import/no-cycle": "error",
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-explicit-any": "error",
+    // Numeric separators and `String.raw` are nice, but this codebase reads fine
+    // without them and the churn isn't worth it.
+    "unicorn/numeric-separators-style": "off",
+    "unicorn/prefer-string-raw": "off"
+  },
+  "overrides": [
+    {
+      "files": ["src/server/**/*.ts", "vite.config.ts", "vitest.config.ts"],
+      "plugins": ["node"],
+      "env": { "node": true }
+    },
+    {
+      "files": ["src/client/**/*.{ts,tsx}"],
+      // No `react-perf`: it only pays off with memoized children, and this tree
+      // has none — every hit would be a false positive on an inline handler.
+      "plugins": ["react", "jsx-a11y"],
+      "env": { "browser": true },
+      "rules": {
+        // The automatic JSX runtime (jsx: "react-jsx") doesn't need React in scope.
+        "react/react-in-jsx-scope": "off",
+        // Component stylesheets are side-effect imports by design — Vite hoists
+        // them into the bundle's CSS.
+        "import/no-unassigned-import": "off",
+        "react/jsx-key": "error",
+        "react/rules-of-hooks": "error",
+        "react/exhaustive-deps": "warn"
+      }
+    },
+    {
+      "files": ["src/**/*.test.{ts,tsx}", "src/client/test/**/*.{ts,tsx}"],
+      "plugins": ["vitest"],
+      "env": { "node": true, "browser": true },
+      "rules": {
+        "vitest/no-focused-tests": "error",
+        "vitest/no-identical-title": "error",
+        "typescript/no-non-null-assertion": "off",
+        // Sequential awaits in a loop are usually the point in a test.
+        "no-await-in-loop": "off"
+      }
+    }
+  ]
+}

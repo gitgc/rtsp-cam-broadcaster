@@ -49,7 +49,7 @@ flat even if the site goes viral.
    - **URL:** `localhost:8080`
 5. Save. Cloudflare creates the DNS record for you automatically.
 
-> You run the connector from *this* container — not the one-liner Cloudflare
+> You run the connector from _this_ container — not the one-liner Cloudflare
 > shows. All you need from that screen is the token.
 
 ### 2. Configure
@@ -82,19 +82,19 @@ seconds after ffmpeg connects to the camera. 🎉
 
 All via environment variables (see [.env.example](.env.example)):
 
-| Variable            | Default             | Description                                            |
-| ------------------- | ------------------- | ------------------------------------------------------ |
-| `RTSP_URL`          | **required**        | Camera RTSP URL. Supports `${VAR}` expansion.          |
-| `TUNNEL_TOKEN`      | **required**        | Cloudflare Tunnel token.                               |
-| `STREAM_TITLE`      | `Paul's Chickens`   | Page title / heading.                                  |
-| `STREAM_TAGLINE`    | `Live from the coop`| Sub-heading + meta description.                        |
-| `ENABLE_AUDIO`      | `false`             | Include camera audio (transcoded to AAC).              |
-| `HLS_SEGMENT_TIME`  | `2`                 | Seconds per HLS segment. Lower = less latency.         |
-| `HLS_LIST_SIZE`     | `6`                 | Segments kept in the live playlist.                    |
-| `RTSP_TRANSPORT`    | `tcp`               | `tcp` (reliable) or `udp` (lower latency).             |
-| `PORT`              | `8080`              | Internal HTTP port (match the tunnel hostname).        |
-| `LOG_LEVEL`         | `info`              | `debug` shows raw ffmpeg/cloudflared output.           |
-| `FFMPEG_EXTRA_ARGS` | –                   | Extra ffmpeg flags, space-separated (advanced).        |
+| Variable            | Default              | Description                                     |
+| ------------------- | -------------------- | ----------------------------------------------- |
+| `RTSP_URL`          | **required**         | Camera RTSP URL. Supports `${VAR}` expansion.   |
+| `TUNNEL_TOKEN`      | **required**         | Cloudflare Tunnel token.                        |
+| `STREAM_TITLE`      | `Paul's Chickens`    | Page title / heading.                           |
+| `STREAM_TAGLINE`    | `Live from the coop` | Sub-heading + meta description.                 |
+| `ENABLE_AUDIO`      | `false`              | Include camera audio (transcoded to AAC).       |
+| `HLS_SEGMENT_TIME`  | `2`                  | Seconds per HLS segment. Lower = less latency.  |
+| `HLS_LIST_SIZE`     | `6`                  | Segments kept in the live playlist.             |
+| `RTSP_TRANSPORT`    | `tcp`                | `tcp` (reliable) or `udp` (lower latency).      |
+| `PORT`              | `8080`               | Internal HTTP port (match the tunnel hostname). |
+| `LOG_LEVEL`         | `info`               | `debug` shows raw ffmpeg/cloudflared output.    |
+| `FFMPEG_EXTRA_ARGS` | –                    | Extra ffmpeg flags, space-separated (advanced). |
 
 ---
 
@@ -105,7 +105,9 @@ edge-cached, so Cloudflare serves them and origin sends each one just once:
 
 - `/hls/*.ts` — segments (unique filenames).
 - `/api/detections/*/snapshot.jpg` — snapshots (the URL carries a `?ts`).
-- `/vendor/hls.min.js` — the 543 KB player.
+- `/assets/*` — the built JS/CSS, including the ~510 KB hls.js chunk. Vite
+  content-hashes these filenames, so each build is a fresh, permanently
+  cacheable URL.
 
 The **live playlist** (`stream.m3u8`) and the small detections JSON are sent
 `no-store` **on purpose**. A live playlist that's even slightly stale leaves the
@@ -139,7 +141,7 @@ sustained freeze. If you still see frequent "reconnecting", work down this list
 
 1. **Enable the `.ts` Cache Rule above.** Without it, every viewer pulls the full
    stream bitrate straight from your home uplink — a few viewers can saturate it
-   and stall *everyone*. This is the single biggest lever.
+   and stall _everyone_. This is the single biggest lever.
 2. **Widen the buffer window.** Increase `HLS_LIST_SIZE` (e.g. `10`–`15`) in
    `.env` so the player can buffer more ahead. `SEGMENT_TIME × LIST_SIZE` is the
    ceiling on how much it can hold. `docker compose up -d` to apply (no rebuild).
@@ -150,8 +152,9 @@ sustained freeze. If you still see frequent "reconnecting", work down this list
    lower-bitrate camera profile.
 
 Player-side tuning (buffer sizes, freeze thresholds) lives in
-[public/assets/app.js](public/assets/app.js); changes there need a
-`docker compose up -d --build` since the page is baked into the image.
+[src/client/hooks/useHlsPlayer.ts](src/client/hooks/useHlsPlayer.ts); changes
+there need a `docker compose up -d --build` since the client bundle is baked
+into the image.
 
 ---
 
@@ -167,16 +170,16 @@ JPEG), keeps the latest per label in memory, and renders a **"Recently spotted"*
 grid under the video. Everything rides the MQTT connection — no HTTP calls back
 to Frigate, no disk writes.
 
-| Variable            | Default                          | Description                                          |
-| ------------------- | -------------------------------- | ---------------------------------------------------- |
-| `MQTT_HOST`         | – (blank disables the feature)   | Frigate broker host.                                 |
-| `MQTT_PORT`         | `1883`                           | Broker port.                                         |
-| `MQTT_USERNAME`     | –                                | Broker username (optional).                          |
-| `MQTT_PASSWORD`     | –                                | Broker password (optional).                          |
-| `MQTT_TLS`          | `false`                          | Use `mqtts://`.                                      |
-| `MQTT_TOPIC_PREFIX` | `frigate`                        | Frigate's MQTT topic prefix.                         |
-| `FRIGATE_CAMERA`    | – (any camera)                   | Restrict to one Frigate camera name.                 |
-| `FRIGATE_LABELS`    | `bear,deer,dog,…,rabbit`         | Object labels to surface.                            |
+| Variable            | Default                        | Description                          |
+| ------------------- | ------------------------------ | ------------------------------------ |
+| `MQTT_HOST`         | – (blank disables the feature) | Frigate broker host.                 |
+| `MQTT_PORT`         | `1883`                         | Broker port.                         |
+| `MQTT_USERNAME`     | –                              | Broker username (optional).          |
+| `MQTT_PASSWORD`     | –                              | Broker password (optional).          |
+| `MQTT_TLS`          | `false`                        | Use `mqtts://`.                      |
+| `MQTT_TOPIC_PREFIX` | `frigate`                      | Frigate's MQTT topic prefix.         |
+| `FRIGATE_CAMERA`    | – (any camera)                 | Restrict to one Frigate camera name. |
+| `FRIGATE_LABELS`    | `bear,deer,dog,…,rabbit`       | Object labels to surface.            |
 
 Requires Frigate with **snapshots + MQTT enabled**. If the broker is
 unreachable the app just retries in the background — the rest of the stream is
@@ -201,21 +204,76 @@ Requires `ffmpeg` and `cloudflared` on your PATH.
 
 ```bash
 npm install
-cp .env.example .env           # then edit; add HLS_DIR=./.hls for a local dir
+npx playwright install chromium   # once — the component tests run in a real browser
+cp .env.example .env              # then edit; add HLS_DIR=./.hls for a local dir
 npm run dev
 ```
 
+`npm run dev` builds the client once, then runs two processes side by side: the
+Fastify server on **:8080** (APIs + HLS) and the Vite dev server on **:5173**
+with hot module replacement. **Open <http://localhost:5173>** — it proxies
+`/api` and `/hls` through to Fastify, so you get real video with instant UI
+reloads. `npm run dev:server` / `npm run dev:client` run either half alone.
+
 `.env` in the project root is loaded automatically by `npm start`, `npm run dev`,
-and `node dist/index.js` (via Node's built-in env-file support). Real shell
-environment variables take precedence over the file, and you can point at a
-different file with `ENV_FILE=path/to/other.env`. In Docker there's no `.env` —
+and `node dist/server/index.js` (via Node's built-in env-file support). Real
+shell environment variables take precedence over the file, and you can point at
+a different file with `ENV_FILE=path/to/other.env`. In Docker there's no `.env` —
 compose's `env_file:` injects the vars instead.
 
-`npm run build` compiles to `dist/`; `npm start` runs the compiled app;
-`npm run typecheck` type-checks without emitting; `npm test` runs the unit
-suite (Node's built-in test runner via `tsx` — no extra dependency) covering
-config parsing/redaction, the presence counter, and the HTTP routes (including
-the iOS `TARGETDURATION` rewrite and cache headers).
+### Layout
+
+```text
+src/
+├── client/                    React app, bundled by Vite -> dist/client
+│   ├── components/            one folder per component: .tsx + .css + .test.tsx
+│   │   ├── Header/            title, LIVE badge, viewer count
+│   │   ├── RtspVideoViewer/   <video> + the buffering/reconnecting overlay
+│   │   ├── RecentlySpotted/   the sightings grid
+│   │   ├── SightingCard/      one snapshot tile
+│   │   ├── Lightbox/          enlarged snapshot (native <dialog>)
+│   │   └── Footer/
+│   ├── hooks/                 useHlsPlayer, useViewerCount, useDetections
+│   ├── lib/                   helpers: api.ts, time, labels, bootstrap
+│   └── index.html             Vite entry; the server templates it at boot
+├── server/                    Fastify + ffmpeg/cloudflared supervision -> dist/server
+└── shared/                    types both sides import (the wire contract)
+```
+
+Tests live next to what they test (`Header.tsx` / `Header.test.tsx`).
+
+### Toolchain
+
+| Command               | What it does                                                       |
+| --------------------- | ------------------------------------------------------------------ |
+| `npm run build`       | `vite build` → `dist/client`, then `tsc` → `dist/server`           |
+| `npm start`           | Runs the compiled app (needs `npm run build` first)                |
+| `npm test`            | Both Vitest projects: `server` (Node) and `client` (real Chromium) |
+| `npm run test:client` | Component tests only, via `vitest-browser-react`                   |
+| `npm run test:server` | Route/config/MQTT tests only                                       |
+| `npm run typecheck`   | `tsc --noEmit` across client, server and configs                   |
+| `npm run lint`        | [oxlint](https://oxc.rs) — warnings are errors                     |
+| `npm run format`      | [oxfmt](https://oxc.rs) (`--check` in CI via `npm run check`)      |
+| `npm run check`       | format + lint + typecheck + tests — the whole gate                 |
+
+Client tests drive a real browser rather than a DOM shim, so focus management,
+`<dialog>` semantics and ARIA roles are asserted against actual browser
+behaviour. `useHlsPlayer` takes a `loadHls` seam so the fatal-error and
+recovery branches are reachable without a live stream.
+
+### How config reaches the page
+
+`vite build` emits `dist/client/index.html` still containing `{{TITLE}}`,
+`{{TAGLINE}}` and `{{BOOTSTRAP}}`. Fastify fills them in once at boot from
+`STREAM_TITLE` / `STREAM_TAGLINE`: the first two HTML-escaped into the `<title>`
+and Open Graph tags (so crawlers and link previews work without running any
+JavaScript), the third as a JSON blob React reads on startup. `vite dev` fills
+the same placeholders with dev stand-ins.
+
+Everything under `/assets/` is content-hashed by Vite and served
+`immutable`; `index.html` is the single `no-cache` entry point, so a deploy
+takes effect on the next page load. `hls.js` is a lazily-imported chunk, so it
+isn't on the critical path.
 
 ---
 

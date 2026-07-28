@@ -1,0 +1,46 @@
+@import './tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Dark ground for the overscroll ("rubber-band") area on iOS so it doesn't
+   flash white above/below the page. */
+html {
+  background-color: var(--bg);
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh; /* honors the iOS toolbar; falls back to 100vh above */
+  background: radial-gradient(1200px 800px at 50% -10%, #20242c 0%, var(--bg) 55%);
+  color: var(--text);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  /* With viewport-fit=cover the page draws edge-to-edge; pad the content back
+     in by the notch / home-indicator insets so the background fills the safe
+     areas while nothing sits under them. (0 when there are no insets.) */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}

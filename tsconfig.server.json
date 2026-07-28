@@ -1,0 +1,18 @@
+{
+  // Production build of the Node server: src/{server,shared} -> dist/{server,shared}.
+  // The client is built separately by Vite into dist/client.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": false,
+    "sourceMap": true
+  },
+  "include": ["src/server/**/*.ts", "src/shared/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "src/server/test/**"]
+}
