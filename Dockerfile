@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ── Build stage: bundle the React client + compile the server, then prune ─────
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 WORKDIR /app
 
 # Playwright is a devDependency (browser tests only) and its postinstall would
@@ -18,7 +18,7 @@ COPY src ./src
 RUN npm run build && npm prune --omit=dev
 
 # ── Runtime stage ────────────────────────────────────────────────────────────
-FROM node:22-alpine AS runtime
+FROM node:26-alpine AS runtime
 ENV NODE_ENV=production \
     PORT=8080 \
     HLS_DIR=/hls

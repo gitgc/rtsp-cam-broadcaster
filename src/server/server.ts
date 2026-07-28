@@ -100,11 +100,15 @@ export async function buildServer(
   // Vite content-hashes every filename under assets/, so a given URL's bytes
   // never change — cache it forever. index.html (below) is the one mutable
   // entry point and stays no-cache, which is what makes a deploy take effect.
+  // @fastify/static v10 hands `setHeaders` the Fastify reply, not the raw
+  // ServerResponse — hence `reply.header()` rather than `res.setHeader()`.
   await app.register(fastifyStatic, {
     root: path.join(clientDir, 'assets'),
     prefix: '/assets/',
     cacheControl: false,
-    setHeaders: (res) => res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'),
+    setHeaders: (reply) => {
+      reply.header('Cache-Control', 'public, max-age=31536000, immutable')
+    },
   })
 
   // Live HLS output. Segments get immutable long-cache (unique filenames);
@@ -114,13 +118,13 @@ export async function buildServer(
     prefix: '/hls/',
     decorateReply: false,
     cacheControl: false,
-    setHeaders: (res, filePath) => {
+    setHeaders: (reply, filePath) => {
       if (filePath.endsWith('.m3u8')) {
-        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl')
-        res.setHeader('Cache-Control', 'public, max-age=1')
+        reply.header('Content-Type', 'application/vnd.apple.mpegurl')
+        reply.header('Cache-Control', 'public, max-age=1')
       } else if (filePath.endsWith('.ts')) {
-        res.setHeader('Content-Type', 'video/mp2t')
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+        reply.header('Content-Type', 'video/mp2t')
+        reply.header('Cache-Control', 'public, max-age=31536000, immutable')
       }
     },
   })
