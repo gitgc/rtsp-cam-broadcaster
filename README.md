@@ -9,7 +9,7 @@ Built to serve [cluckcam.org](https://cluckcam.org): a live feed of
 Paul's chickens.
 
 ```text
-  Dahua RTSP cam ──► ffmpeg (H.264 remux, no re-encode) ──► HLS segments (tmpfs)
+  generic RTSP cam feed ──► ffmpeg (H.264 remux, no re-encode) ──► HLS segments (tmpfs)
                                                                   │
                                           Fastify server :8080 ◄──┘
                                                   │
