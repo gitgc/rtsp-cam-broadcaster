@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { absoluteTime, relativeTime } from './time.js'
+import { absoluteTime, relativeTime, UNDATED_LABEL } from './time.js'
 
 const NOW = Date.UTC(2026, 0, 15, 12, 0, 0)
 const ago = (ms: number) => relativeTime(NOW - ms, NOW)
@@ -19,11 +19,13 @@ describe('relativeTime', () => {
     expect(ago(10 * 24 * 60 * 60_000)).toBe('10d ago')
   })
 
-  it('says "recently" when the timestamp is unknown', () => {
+  it('does not claim recency for a snapshot of unknown age', () => {
     // Retained Frigate snapshots have no trustworthy time — see frigate.ts.
-    expect(relativeTime(null, NOW)).toBe('recently')
-    expect(relativeTime(0, NOW)).toBe('recently')
-    expect(relativeTime(undefined, NOW)).toBe('recently')
+    // They can be days old, so the label must not imply they are fresh.
+    for (const unknown of [null, 0, undefined]) {
+      expect(relativeTime(unknown, NOW)).toBe(UNDATED_LABEL)
+      expect(relativeTime(unknown, NOW)).not.toMatch(/recent|ago/)
+    }
   })
 
   it('never shows a negative age when a clock is skewed ahead', () => {

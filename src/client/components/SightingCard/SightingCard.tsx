@@ -1,6 +1,6 @@
 import type { DetectionDto } from '../../../shared/types.js'
 import { labelDisplay, labelTitle } from '../../lib/labels.js'
-import { absoluteTime, relativeTime } from '../../lib/time.js'
+import { absoluteTime, relativeTime, UNDATED_TITLE } from '../../lib/time.js'
 import './SightingCard.css'
 
 export interface SightingCardProps {
@@ -15,6 +15,7 @@ export interface SightingCardProps {
  */
 export function SightingCard({ detection, onSelect }: SightingCardProps) {
   const title = labelTitle(detection.label)
+  const seenAt = detection.lastSeen
 
   return (
     <button
@@ -26,13 +27,21 @@ export function SightingCard({ detection, onSelect }: SightingCardProps) {
       <img loading="lazy" alt="" src={detection.image} />
       <span className="sighting-caption">
         <span className="sighting-name">{labelDisplay(detection.label)}</span>
-        <time
-          className="sighting-time"
-          dateTime={detection.lastSeen ? new Date(detection.lastSeen).toISOString() : undefined}
-          title={absoluteTime(detection.lastSeen)}
-        >
-          {relativeTime(detection.lastSeen)}
-        </time>
+        {/* <time> needs a machine-readable value, which an undated retained
+            snapshot doesn't have — so it degrades to a plain span. */}
+        {seenAt ? (
+          <time
+            className="sighting-time"
+            dateTime={new Date(seenAt).toISOString()}
+            title={absoluteTime(seenAt)}
+          >
+            {relativeTime(seenAt)}
+          </time>
+        ) : (
+          <span className="sighting-time" title={UNDATED_TITLE}>
+            {relativeTime(seenAt)}
+          </span>
+        )}
       </span>
     </button>
   )

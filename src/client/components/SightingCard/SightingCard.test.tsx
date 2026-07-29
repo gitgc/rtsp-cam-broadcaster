@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-react'
 import type { DetectionDto } from '../../../shared/types.js'
+import { UNDATED_LABEL, UNDATED_TITLE } from '../../lib/time.js'
 import { SightingCard } from './SightingCard.js'
 
 function detection(overrides: Partial<DetectionDto> = {}): DetectionDto {
@@ -39,14 +40,37 @@ describe('SightingCard', () => {
     await expect.element(screen.getByText('5m ago')).toBeInTheDocument()
   })
 
-  it('says "recently" when the snapshot has no known timestamp', async () => {
+  it('does not imply recency for a snapshot of unknown age', async () => {
+    // A retained Frigate snapshot can be days old. Captioning it "recently"
+    // under a "Recently spotted" heading would be a lie.
     const screen = await render(
       <SightingCard
         detection={detection({ lastSeen: null })}
         onSelect={vi.fn<(d: DetectionDto) => void>()}
       />,
     )
-    await expect.element(screen.getByText('recently')).toBeInTheDocument()
+
+    await expect.element(screen.getByText(UNDATED_LABEL)).toBeInTheDocument()
+    expect(screen.container.textContent).not.toMatch(/recent|ago/)
+    // No <time>: there is no machine-readable value to put in it.
+    expect(screen.container.querySelector('time')).toBeNull()
+    expect(screen.container.querySelector('.sighting-time')?.getAttribute('title')).toBe(
+      UNDATED_TITLE,
+    )
+  })
+
+  it('uses a real <time> element when the sighting is dated', async () => {
+    const at = Date.UTC(2026, 0, 15, 12, 0, 0)
+    const screen = await render(
+      <SightingCard
+        detection={detection({ lastSeen: at })}
+        onSelect={vi.fn<(d: DetectionDto) => void>()}
+      />,
+    )
+
+    expect(screen.container.querySelector('time')?.getAttribute('datetime')).toBe(
+      new Date(at).toISOString(),
+    )
   })
 
   it('renders the snapshot with its cache-busted URL', async () => {

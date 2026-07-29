@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { DetectionDto } from '../../../shared/types.js'
 import { labelDisplay } from '../../lib/labels.js'
-import { absoluteTime } from '../../lib/time.js'
+import { absoluteTime, UNDATED_LABEL, UNDATED_TITLE } from '../../lib/time.js'
 import './Lightbox.css'
 
 export interface LightboxProps {
@@ -67,9 +67,19 @@ export function Lightbox({ detection, onClose }: LightboxProps) {
             <img className="lightbox-img" src={detection.image} alt={name} />
             <figcaption className="lightbox-cap">
               <span className="lightbox-name">{name}</span>
-              <time className="lightbox-time">
-                {absoluteTime(detection.lastSeen) ?? 'spotted recently'}
-              </time>
+              {/* Same as the card: no machine-readable value means no <time>. */}
+              {detection.lastSeen ? (
+                <time
+                  className="lightbox-time"
+                  dateTime={new Date(detection.lastSeen).toISOString()}
+                >
+                  {absoluteTime(detection.lastSeen)}
+                </time>
+              ) : (
+                <span className="lightbox-time" title={UNDATED_TITLE}>
+                  {UNDATED_LABEL}
+                </span>
+              )}
             </figcaption>
           </figure>
         </>

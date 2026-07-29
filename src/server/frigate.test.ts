@@ -95,6 +95,21 @@ describe('FrigateEvents', () => {
     expect(f.getImage('dog')?.toString()).toBe('d') // kept the real image
   })
 
+  it('ranks undated retained snapshots below every dated sighting', () => {
+    // The UI captions undated snapshots "seen earlier" (see lib/time.ts), so
+    // they must not outrank a real, recent sighting in the grid.
+    const f = new FrigateEvents(SETTINGS, noopLog)
+    f.ingestSnapshot('frigate/roaming/raccoon/snapshot', Buffer.from('r'), true) // retained
+    f.ingestSnapshot('frigate/roaming/bear/snapshot', Buffer.from('b'), true) // retained
+    f.ingestEvent(event('deer', { frame_time: 1700000500 }))
+    f.ingestSnapshot('frigate/roaming/deer/snapshot', Buffer.from('d'), false)
+
+    const list = f.list()
+    expect(list[0]?.label).toBe('deer')
+    expect(list[0]?.lastSeen).toBeGreaterThan(0)
+    expect(list.slice(1).map((d) => d.lastSeen)).toEqual([0, 0])
+  })
+
   it('does not fabricate a timestamp from a retained snapshot', () => {
     const f = new FrigateEvents(SETTINGS, noopLog)
     f.ingestSnapshot('frigate/roaming/raccoon/snapshot', Buffer.from('r'), true) // retained

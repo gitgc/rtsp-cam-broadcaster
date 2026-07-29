@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import type { DetectionDto } from '../../../shared/types.js'
+import { UNDATED_LABEL } from '../../lib/time.js'
 import { Lightbox } from './Lightbox.js'
 
 const DEER: DetectionDto = {
@@ -42,12 +43,15 @@ describe('Lightbox', () => {
       .toBeInTheDocument()
   })
 
-  it('says "spotted recently" when the timestamp is unknown', async () => {
+  it('does not imply recency when the timestamp is unknown', async () => {
     // Retained Frigate snapshots carry no trustworthy time — see frigate.ts.
     const screen = await render(
       <Lightbox detection={{ ...DEER, lastSeen: null }} onClose={vi.fn<() => void>()} />,
     )
-    await expect.element(screen.getByText('spotted recently')).toBeInTheDocument()
+
+    await expect.element(screen.getByText(UNDATED_LABEL)).toBeInTheDocument()
+    expect(screen.container.textContent).not.toMatch(/recent/)
+    expect(screen.container.querySelector('time')).toBeNull()
   })
 
   it('closes via the close button', async () => {
