@@ -62,7 +62,9 @@ describe('sendHeartbeat', () => {
 
 describe('fetchDetections', () => {
   it('returns the detections array', async () => {
-    const detections = [{ label: 'deer', camera: 'roaming', lastSeen: 1, score: 1, image: '/x' }]
+    const detections = [
+      { id: 1, label: 'deer', camera: 'roaming', seenAt: 1, score: 1, image: '/x' },
+    ]
     stubFetch(json({ detections }))
 
     await expect(fetchDetections()).resolves.toEqual(detections)

@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import type { DetectionDto } from '../../../shared/types.js'
-import { UNDATED_LABEL } from '../../lib/time.js'
 import { Lightbox } from './Lightbox.js'
 
 const DEER: DetectionDto = {
+  id: 1,
   label: 'deer',
   camera: 'roaming',
-  lastSeen: 1700000000000,
+  seenAt: 1700000000000,
   score: 0.9,
   image: '/api/detections/deer/snapshot.jpg?ts=1',
 }
@@ -39,19 +39,16 @@ describe('Lightbox', () => {
   it('shows when the animal was seen', async () => {
     const screen = await render(<Lightbox detection={DEER} onClose={vi.fn<() => void>()} />)
     await expect
-      .element(screen.getByText(new Date(DEER.lastSeen!).toLocaleString()))
+      .element(screen.getByText(new Date(DEER.seenAt).toLocaleString()))
       .toBeInTheDocument()
   })
 
-  it('does not imply recency when the timestamp is unknown', async () => {
-    // Retained Frigate snapshots carry no trustworthy time — see frigate.ts.
-    const screen = await render(
-      <Lightbox detection={{ ...DEER, lastSeen: null }} onClose={vi.fn<() => void>()} />,
-    )
+  it('marks the caption up as a machine-readable <time>', async () => {
+    const screen = await render(<Lightbox detection={DEER} onClose={vi.fn<() => void>()} />)
 
-    await expect.element(screen.getByText(UNDATED_LABEL)).toBeInTheDocument()
-    expect(screen.container.textContent).not.toMatch(/recent/)
-    expect(screen.container.querySelector('time')).toBeNull()
+    expect(screen.container.querySelector('time')?.getAttribute('datetime')).toBe(
+      new Date(DEER.seenAt).toISOString(),
+    )
   })
 
   it('closes via the close button', async () => {

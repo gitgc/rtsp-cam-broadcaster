@@ -204,7 +204,7 @@ describe('server routes', () => {
     expect(list.headers['cache-control']).toBe('no-store')
     expect(list.json().detections).toEqual([])
 
-    const img = await app.inject({ method: 'GET', url: '/api/detections/deer/snapshot.jpg' })
+    const img = await app.inject({ method: 'GET', url: '/api/detections/deer/1/snapshot.jpg' })
     expect(img.statusCode).toBe(404)
   })
 })
@@ -225,19 +225,49 @@ describe('buildServer without a client build', () => {
 describe('detection routes with a source', () => {
   let root: string
   let app: FastifyInstance
-  const jpeg = Buffer.from('JPEGDATA')
+
+  // Two snapshots of the same animal plus one undated retained image — the
+  // shape the grid now renders. Hashes are 16 lowercase hex characters.
+  const NEW_HASH = 'aaaaaaaaaaaaaaa2'
+  const OLD_HASH = 'aaaaaaaaaaaaaaa1'
+  const FOX_HASH = 'bbbbbbbbbbbbbbb3'
+
+  const images = new Map([
+    [`deer/${OLD_HASH}`, Buffer.from('DEER-OLD')],
+    [`deer/${NEW_HASH}`, Buffer.from('DEER-NEW')],
+    [`fox/${FOX_HASH}`, Buffer.from('FOX-RETAINED')],
+  ])
   const source = {
     list: () => [
       {
+        id: 2,
+        hash: NEW_HASH,
         label: 'deer',
         camera: 'roaming',
-        lastSeen: 1700000000000,
         score: 0.9,
-        image: jpeg,
-        imageAt: 42,
+        seenAt: 1700000200000,
+        image: images.get(`deer/${NEW_HASH}`)!,
+      },
+      {
+        id: 1,
+        hash: OLD_HASH,
+        label: 'deer',
+        camera: 'roaming',
+        score: 0.8,
+        seenAt: 1700000100000,
+        image: images.get(`deer/${OLD_HASH}`)!,
+      },
+      {
+        id: 3,
+        hash: FOX_HASH,
+        label: 'fox',
+        camera: 'roaming',
+        score: 0,
+        seenAt: 1700000050000,
+        image: images.get(`fox/${FOX_HASH}`)!,
       },
     ],
-    getImage: (label: string) => (label === 'deer' ? jpeg : undefined),
+    getImage: (label: string, hash: string) => images.get(`${label}/${hash}`),
   }
 
   beforeEach(async () => {
@@ -254,28 +284,83 @@ describe('detection routes with a source', () => {
     await rm(root, { recursive: true, force: true })
   })
 
-  it('lists detections with a cache-busting image URL', async () => {
+  it('lists every stored snapshot, in the order the source gives them', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/detections' })
     expect(res.statusCode).toBe(200)
-    const body = res.json()
-    expect(body.detections).toHaveLength(1)
-    expect(body.detections[0].label).toBe('deer')
-    expect(body.detections[0].image).toBe('/api/detections/deer/snapshot.jpg?ts=42')
+
+    const { detections } = res.json()
+    expect(detections).toHaveLength(3)
+    // The same label appears more than once now — id is what identifies a card.
+    expect(detections.map((d: { label: string }) => d.label)).toEqual(['deer', 'deer', 'fox'])
+    expect(detections.map((d: { id: number }) => d.id)).toEqual([2, 1, 3])
   })
 
-  it('serves the snapshot image for a known label', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/detections/deer/snapshot.jpg' })
-    expect(res.statusCode).toBe(200)
-    expect(res.headers['content-type']).toMatch(/image\/jpeg/)
-    expect(res.headers['cache-control']).toMatch(/immutable/)
-    expect(res.rawPayload.toString()).toBe('JPEGDATA')
+  it('builds a content-addressed, path-based URL per snapshot', async () => {
+    const { detections } = (await app.inject({ method: 'GET', url: '/api/detections' })).json()
+
+    // The hash — not the process-local id — is what appears in the URL, so a
+    // restart can never point a cached URL at different bytes. Path-based (not
+    // ?ts=) so it survives a CDN that strips query strings from the cache key.
+    expect(detections[0].image).toBe(`/api/detections/deer/${NEW_HASH}/snapshot.jpg`)
+    expect(detections[1].image).toBe(`/api/detections/deer/${OLD_HASH}/snapshot.jpg`)
+    expect(detections.map((d: { image: string }) => d.image)).not.toContainEqual(
+      expect.stringMatching(/\/deer\/[12]\/snapshot/),
+    )
+    expect(new Set(detections.map((d: { image: string }) => d.image)).size).toBe(3)
   })
 
-  it('404s an unknown label and a label with no image yet', async () => {
-    const unknown = await app.inject({ method: 'GET', url: '/api/detections/person/snapshot.jpg' })
-    expect(unknown.statusCode).toBe(404) // not in the configured label set
+  it('passes the capture time through and nulls a missing score', async () => {
+    const { detections } = (await app.inject({ method: 'GET', url: '/api/detections' })).json()
 
-    const noImage = await app.inject({ method: 'GET', url: '/api/detections/bear/snapshot.jpg' })
-    expect(noImage.statusCode).toBe(404) // known label, but source has no image
+    // Every stored snapshot has a real time — undated retained images are
+    // dropped at ingest, so seenAt is never null.
+    expect(detections.map((d: { seenAt: number }) => d.seenAt)).toEqual([
+      1700000200000, 1700000100000, 1700000050000,
+    ])
+    expect(detections[2].score).toBeNull()
+  })
+
+  it('serves each snapshot of the same label separately', async () => {
+    const base = '/api/detections/deer'
+    const newer = await app.inject({ method: 'GET', url: `${base}/${NEW_HASH}/snapshot.jpg` })
+    const older = await app.inject({ method: 'GET', url: `${base}/${OLD_HASH}/snapshot.jpg` })
+
+    expect(newer.rawPayload.toString()).toBe('DEER-NEW')
+    expect(older.rawPayload.toString()).toBe('DEER-OLD')
+    for (const res of [newer, older]) {
+      expect(res.statusCode).toBe(200)
+      expect(res.headers['content-type']).toMatch(/image\/jpeg/)
+      expect(res.headers['cache-control']).toMatch(/immutable/)
+    }
+  })
+
+  it('scopes a snapshot to its own label', async () => {
+    // The fox's hash must not resolve under /deer/, even though the store has it.
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/detections/deer/${FOX_HASH}/snapshot.jpg`,
+    })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('404s unknown labels and anything that is not hash-shaped', async () => {
+    const urls = [
+      `/api/detections/person/${NEW_HASH}/snapshot.jpg`, // label not configured
+      `/api/detections/bear/${NEW_HASH}/snapshot.jpg`, // known label, not this hash
+      '/api/detections/deer/ffffffffffffffff/snapshot.jpg', // well-formed, unknown
+      '/api/detections/deer/aaaa/snapshot.jpg', // too short
+      '/api/detections/deer/aaaaaaaaaaaaaaaaaa/snapshot.jpg', // too long
+      '/api/detections/deer/AAAAAAAAAAAAAAA2/snapshot.jpg', // uppercase hex
+      '/api/detections/deer/zzzzzzzzzzzzzzzz/snapshot.jpg', // not hex
+      '/api/detections/deer/..%2f..%2fetc/snapshot.jpg', // traversal attempt
+    ]
+
+    const statuses: Record<string, number> = {}
+    for (const url of urls) {
+      statuses[url] = (await app.inject({ method: 'GET', url })).statusCode
+    }
+
+    // Asserting the whole map at once names the offending URL on failure.
+    expect(statuses).toEqual(Object.fromEntries(urls.map((url) => [url, 404])))
   })
 })

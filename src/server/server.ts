@@ -15,8 +15,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { AppBootstrap, DetectionDto } from '../shared/types.js'
 import type { Config } from './config.js'
-import type { DetectionSource } from './frigate.js'
+import { SNAPSHOT_HASH_LENGTH, type DetectionSource } from './frigate.js'
 import { Presence } from './presence.js'
+
+/** Snapshot URL segments are lowercase hex of exactly this length. */
+const SNAPSHOT_HASH_PATTERN = new RegExp(`^[0-9a-f]{${SNAPSHOT_HASH_LENGTH}}$`)
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 /** dist/server -> dist/client, where `vite build` puts the compiled front-end. */
@@ -191,32 +194,41 @@ export async function buildServer(
     return reply.send({ ok: true })
   })
 
-  // Frigate detections: the last-seen animals + their snapshots. Populated only
-  // when MQTT is configured; otherwise these return an empty list / 404.
+  // Frigate detections: the last few snapshots per animal. Populated only when
+  // MQTT is configured; otherwise these return an empty list / 404.
   const knownLabels = new Set(cfg.frigate.labels)
 
   app.get('/api/detections', async (_req, reply) => {
     // Tiny JSON, polled every 30s — keep it fresh (not cached) so new sightings
     // appear promptly. The heavy part, the snapshot images, IS edge-cached.
     reply.header('Cache-Control', 'no-store')
-    const items: DetectionDto[] = (getDetections?.()?.list() ?? []).map((d) => ({
-      label: d.label,
-      camera: d.camera,
-      lastSeen: d.lastSeen || null,
-      score: d.score || null,
-      image: `/api/detections/${encodeURIComponent(d.label)}/snapshot.jpg?ts=${d.imageAt ?? 0}`,
+    const items: DetectionDto[] = (getDetections?.()?.list() ?? []).map((s) => ({
+      id: s.id,
+      label: s.label,
+      camera: s.camera,
+      seenAt: s.seenAt,
+      score: s.score || null,
+      image: `/api/detections/${encodeURIComponent(s.label)}/${s.hash}/snapshot.jpg`,
     }))
     return reply.send({ detections: items })
   })
 
-  app.get('/api/detections/:label/snapshot.jpg', async (req, reply) => {
-    const label = String((req.params as { label: string }).label).toLowerCase()
+  app.get('/api/detections/:label/:hash/snapshot.jpg', async (req, reply) => {
+    const params = req.params as { label: string; hash: string }
+    const label = String(params.label).toLowerCase()
     if (!knownLabels.has(label)) return reply.code(404).send('unknown label')
-    const image = getDetections?.()?.getImage(label)
-    if (!image) return reply.code(404).send('no snapshot yet')
+
+    // Reject anything that isn't hash-shaped before touching the store.
+    const hash = String(params.hash)
+    if (!SNAPSHOT_HASH_PATTERN.test(hash)) return reply.code(404).send('bad snapshot hash')
+
+    const image = getDetections?.()?.getImage(label, hash)
+    if (!image) return reply.code(404).send('no such snapshot')
     reply.header('Content-Type', 'image/jpeg')
-    // The URL's ?ts changes whenever the image does, so each version is
-    // immutable — the edge serves it and origin sends each snapshot just once.
+    // The URL is content-addressed, so it can only ever name these exact bytes
+    // — safe to cache forever even across restarts and redeploys. It also lives
+    // entirely in the path, so it survives a CDN configured to strip query
+    // strings from the cache key.
     reply.header('Cache-Control', 'public, max-age=31536000, immutable')
     return reply.send(image)
   })

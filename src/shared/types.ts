@@ -5,19 +5,37 @@
  * whichever side hasn't caught up yet.
  */
 
-/** One "recently spotted" animal, as returned by `GET /api/detections`. */
+/**
+ * One snapshot of one animal, as returned by `GET /api/detections`.
+ *
+ * The server keeps the last few snapshots per label (see
+ * MAX_SNAPSHOTS_PER_LABEL in src/server/frigate.ts), so the same `label` can
+ * appear more than once — `id` is what uniquely identifies a sighting.
+ */
 export interface DetectionDto {
+  /**
+   * Identifies this sighting within one response — use it as the list key.
+   * Process-local, so don't persist it or build URLs from it.
+   */
+  id: number
   /** Frigate object label, lowercased (e.g. `deer`). */
   label: string
   camera: string
-  /** Epoch ms of the last sighting; `null` when only a historical snapshot exists. */
-  lastSeen: number | null
+  /**
+   * Epoch ms the animal was seen. Always a real time: the server only stores
+   * snapshots from detections that happened while it was running.
+   */
+  seenAt: number
   score: number | null
-  /** Snapshot URL, versioned by `?ts=` so each revision caches immutably. */
+  /**
+   * Snapshot URL. Content-addressed, so it names exactly these bytes and is
+   * safe to cache forever — including across server restarts.
+   */
   image: string
 }
 
 export interface DetectionsResponse {
+  /** Newest first; snapshots of unknown age last. */
   detections: DetectionDto[]
 }
 

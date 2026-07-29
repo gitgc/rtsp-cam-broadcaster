@@ -7,9 +7,10 @@ const TICK_MS = 20
 const idle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const DEER: DetectionDto = {
+  id: 1,
   label: 'deer',
   camera: 'roaming',
-  lastSeen: 1700000000000,
+  seenAt: 1700000000000,
   score: 0.9,
   image: '/api/detections/deer/snapshot.jpg?ts=1',
 }

@@ -7,9 +7,10 @@ import { createFakeHls } from './test/fakeHls.js'
 const BOOTSTRAP: AppBootstrap = { title: "Paul's Chickens", tagline: 'Live from the coop 🐔' }
 
 const DEER: DetectionDto = {
+  id: 1,
   label: 'deer',
   camera: 'roaming',
-  lastSeen: Date.now() - 60_000,
+  seenAt: Date.now() - 60_000,
   score: 0.9,
   image: '/api/detections/deer/snapshot.jpg?ts=1',
 }

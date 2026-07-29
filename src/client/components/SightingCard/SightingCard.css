@@ -1,5 +1,9 @@
 .sighting {
-  display: block;
+  /* A column, so the image can absorb whatever height the grid row hands us.
+     Grid items stretch to the tallest in their row; as a plain block the extra
+     height showed up as a strip of bare panel background. */
+  display: flex;
+  flex-direction: column;
   width: 100%;
   margin: 0;
   padding: 0;
@@ -29,7 +33,10 @@
 .sighting img {
   display: block;
   width: 100%;
+  /* aspect-ratio sets the natural size; flex-grow lets it take up any slack. */
   aspect-ratio: 4 / 3;
+  flex: 1 1 auto;
+  min-height: 0;
   object-fit: cover;
   background: #000;
 }
@@ -40,12 +47,20 @@
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
+  flex: none;
 }
 
 .sighting-name {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
+  /* Always one line. A wrapped name made its card taller than its neighbours,
+     and the grid then stretched the whole row to match. Long labels (Frigate
+     tracks plenty — `license_plate`, `motorcycle`) truncate instead. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sighting-time {
@@ -53,6 +68,7 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  flex: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

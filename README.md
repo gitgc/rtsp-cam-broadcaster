@@ -104,7 +104,11 @@ Only the **immutable** resources — the ones with a unique URL per version — 
 edge-cached, so Cloudflare serves them and origin sends each one just once:
 
 - `/hls/*.ts` — segments (unique filenames).
-- `/api/detections/*/snapshot.jpg` — snapshots (the URL carries a `?ts`).
+- `/api/detections/<label>/<hash>/snapshot.jpg` — snapshots, addressed by a hash
+  of their own bytes. A URL can only ever name the image it was minted for, so
+  `immutable` is honest even across restarts and redeploys. The hash lives in the
+  path, not a query string, so it stays cacheable behind a CDN configured to
+  strip query strings from the cache key.
 - `/assets/*` — the built JS/CSS, including the ~510 KB hls.js chunk. Vite
   content-hashes these filenames, so each build is a fresh, permanently
   cacheable URL.
@@ -160,15 +164,36 @@ into the image.
 
 ## Recently-spotted animals (Frigate over MQTT)
 
-If you run [Frigate](https://frigate.video), the page can show the latest
-snapshot of each animal it detects. Set `MQTT_HOST` (and the other `MQTT_*` vars)
-in `.env` to enable it — leave it blank and the whole feature is off.
+If you run [Frigate](https://frigate.video), the page can show recent snapshots
+of the animals it detects. Set `MQTT_HOST` (and the other `MQTT_*` vars) in
+`.env` to enable it — leave it blank and the whole feature is off.
 
 How it works: the app subscribes to your broker's `frigate/events` (for the
-label + timestamp) and `frigate/<camera>/<label>/snapshot` (the retained best
-JPEG), keeps the latest per label in memory, and renders a **"Recently spotted"**
-grid under the video. Everything rides the MQTT connection — no HTTP calls back
-to Frigate, no disk writes.
+label + timestamp) and `frigate/<camera>/<label>/snapshot` (the best JPEG), and
+renders a **"Recently spotted"** grid under the video, newest first. Everything
+rides the MQTT connection — no HTTP calls back to Frigate, no disk writes.
+
+It keeps the **last 5 snapshots per label** in a ring buffer: once a label has
+five, the next one pushes the oldest out. So a busy afternoon of deer gives you
+five deer cards, and every animal keeps its own history regardless of how active
+the others are.
+
+**The grid starts empty on every boot.** Frigate publishes snapshots with MQTT's
+retain flag, so the broker replays the last image per label the moment we
+subscribe — images that can be days old and carry no timestamp. Those replays are
+dropped, so the page only ever shows detections that happened while the current
+process was running. (Live detections are unaffected: MQTT requires the broker to
+clear the retain flag when forwarding to an already-established subscription, so
+only the replay-at-subscribe is recognisable as retained.)
+
+The page renders the **18 most recent** of those, so a full store (45 with the
+default nine labels) stays a glance-at-it panel rather than a wall of thumbnails.
+`/api/detections` still returns everything stored; the cap is
+`MAX_RENDERED_SIGHTINGS` in
+[RecentlySpotted.tsx](src/client/components/RecentlySpotted/RecentlySpotted.tsx).
+
+Memory is bounded by construction: 5 snapshots × the labels you track, at
+roughly 25 KB per JPEG (~1 MB for the default nine labels).
 
 | Variable            | Default                        | Description                          |
 | ------------------- | ------------------------------ | ------------------------------------ |
