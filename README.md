@@ -1,6 +1,6 @@
 # 🐔 rtsp-cam-broadcaster
 
-A tiny process that takes an **RTSP camera** and
+An ultra-low overhead server that takes an **RTSP camera** and
 rebroadcasts it as **HLS video** over a **Cloudflare Tunnel** — so you can put a
 camera on the public internet **without exposing your home server or opening a
 single port**.
