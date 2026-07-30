@@ -29,7 +29,11 @@ services:
       autoheal-app: true
     healthcheck:
       <<: *health_check_defaults
-      test: [ "CMD", "curl", "-fsS", "http://127.0.0.1:${PORT}/healthz" ]
+      # Compose interpolates ${PORT} from the project .env at parse time — NOT
+      # from the container's environment — so the default matters: without it an
+      # .env that omits PORT yields "http://127.0.0.1:/healthz", curl fails
+      # every time, and autoheal restarts a perfectly healthy container forever.
+      test: [ "CMD", "curl", "-fsS", "http://127.0.0.1:${PORT:-8080}/healthz" ]
 
   autoheal:
     image: willfarrell/autoheal:latest

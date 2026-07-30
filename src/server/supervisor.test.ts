@@ -86,6 +86,25 @@ describe('Supervisor', () => {
     expect(spawns()).toBe(afterStop)
   })
 
+  it('does not spawn a child when stop() lands during beforeStart', async () => {
+    // beforeStart does real async I/O (prepareHlsDir wipes the segment dir), so
+    // there is a genuine window where stop() sees no child yet, returns, and an
+    // unguarded spawn would then leave an orphan nothing ever kills.
+    let release: (() => void) | undefined
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const { supervisor, log } = harness(LIVES, { beforeStart: () => blocked })
+
+    const starting = supervisor.start()
+    await supervisor.stop()
+    release?.()
+    await starting
+
+    expect(log.at('debug')).not.toContain('test: starting')
+    expect(supervisor.uptimeMs()).toBe(0)
+  })
+
   it('bounce() kills a wedged child and the exit handler brings it back', async () => {
     const { supervisor, spawns, log } = harness(LIVES)
     await supervisor.start()

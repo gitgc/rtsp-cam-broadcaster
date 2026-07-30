@@ -21,6 +21,11 @@
 .overlay {
   position: absolute;
   inset: 0;
+  /* Purely informational, and it covers the whole player — so it must never
+     intercept taps meant for the video's own controls underneath. Without this,
+     a browser that refuses autoplay leaves the play button unreachable behind
+     a spinner that will never resolve. */
+  pointer-events: none;
   display: flex;
   flex-direction: column;
   align-items: center;

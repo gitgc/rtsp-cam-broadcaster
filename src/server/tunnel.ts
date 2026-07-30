@@ -9,9 +9,11 @@ import type { Config } from './config.js'
 import { Supervisor } from './supervisor.js'
 
 /**
- * The cloudflared argument vector. `--no-autoupdate` keeps the pinned binary in
- * place, and `--protocol` is what makes the tunnel work on networks that block
- * outbound UDP :7844 (see TUNNEL_PROTOCOL in config.ts).
+ * The cloudflared argument vector. `--no-autoupdate` stops cloudflared from
+ * replacing the binary the image was built with, so the version only ever moves
+ * on a rebuild (the Dockerfile fetches `releases/latest` — it is not pinned).
+ * `--protocol` is what makes the tunnel work on networks that block outbound
+ * UDP :7844 (see TUNNEL_PROTOCOL in config.ts).
  */
 export function buildTunnelArgs(cfg: Config): string[] {
   return [

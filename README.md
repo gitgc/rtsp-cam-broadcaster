@@ -90,7 +90,7 @@ All via environment variables (see [.env.example](.env.example)):
 | `STREAM_TAGLINE`    | `Live from the coop` | Sub-heading + meta description.                 |
 | `ENABLE_AUDIO`      | `false`              | Include camera audio (transcoded to AAC).       |
 | `HLS_SEGMENT_TIME`  | `2`                  | Seconds per HLS segment. Lower = less latency.  |
-| `HLS_LIST_SIZE`     | `6`                  | Segments kept in the live playlist.             |
+| `HLS_LIST_SIZE`     | `6` (example: `10`)  | Segments kept in the live playlist.             |
 | `RTSP_TRANSPORT`    | `tcp`                | `tcp` (reliable) or `udp` (lower latency).      |
 | `PORT`              | `8080`               | Internal HTTP port (match the tunnel hostname). |
 | `LOG_LEVEL`         | `info`               | `debug` shows raw ffmpeg/cloudflared output.    |
@@ -186,14 +186,14 @@ process was running. (Live detections are unaffected: MQTT requires the broker t
 clear the retain flag when forwarding to an already-established subscription, so
 only the replay-at-subscribe is recognisable as retained.)
 
-The page renders the **18 most recent** of those, so a full store (45 with the
-default nine labels) stays a glance-at-it panel rather than a wall of thumbnails.
+The page renders the **18 most recent** of those, so a full store (50 with the
+default ten labels) stays a glance-at-it panel rather than a wall of thumbnails.
 `/api/detections` still returns everything stored; the cap is
 `MAX_RENDERED_SIGHTINGS` in
 [RecentlySpotted.tsx](src/client/components/RecentlySpotted/RecentlySpotted.tsx).
 
 Memory is bounded by construction: 5 snapshots × the labels you track, at
-roughly 25 KB per JPEG (~1 MB for the default nine labels).
+roughly 25 KB per JPEG (~1.3 MB for the default ten labels).
 
 | Variable            | Default                        | Description                          |
 | ------------------- | ------------------------------ | ------------------------------------ |

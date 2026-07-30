@@ -118,6 +118,11 @@ export class Supervisor {
       return
     }
 
+    // stop() may have landed while we were awaiting beforeStart/getArgs. It saw
+    // no child (we hadn't spawned yet) and returned, so nothing will ever kill
+    // what we're about to start — check again before committing.
+    if (this.stopping) return
+
     this.log.debug(`${this.name}: starting`)
     let child: ChildProcess
     try {

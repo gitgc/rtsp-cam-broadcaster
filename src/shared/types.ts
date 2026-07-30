@@ -35,7 +35,7 @@ export interface DetectionDto {
 }
 
 export interface DetectionsResponse {
-  /** Newest first; snapshots of unknown age last. */
+  /** Newest first. */
   detections: DetectionDto[]
 }
 

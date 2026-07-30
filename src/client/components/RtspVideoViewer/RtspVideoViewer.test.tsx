@@ -55,6 +55,36 @@ describe('RtspVideoViewer', () => {
     await vi.waitFor(() => expect(seen).toContain('playing'))
   })
 
+  it('asks the viewer to tap when the browser refuses autoplay', async () => {
+    // iOS Low Power Mode refuses autoplay even for a muted video. The watchdog
+    // ignores a paused element, so nothing would ever move the state on — the
+    // page would spin "Warming up the coop…" over a stream that plays fine.
+    const play = vi
+      .spyOn(HTMLVideoElement.prototype, 'play')
+      .mockRejectedValue(new DOMException('blocked', 'NotAllowedError'))
+
+    const hls = createFakeHls()
+    const screen = await render(<RtspVideoViewer loadHls={hls.loader} />)
+    await vi.waitFor(() => expect(hls.instance).not.toBeNull())
+
+    hls.instance!.emit('hlsManifestParsed')
+
+    await expect.element(screen.getByRole('status')).toHaveTextContent('Tap to play')
+    // No spinner: we are not "still trying", we're waiting on a user gesture.
+    expect(screen.container.querySelector('.spinner')).toBeNull()
+
+    play.mockRestore()
+  })
+
+  it('keeps the overlay from swallowing taps meant for the video controls', async () => {
+    const hls = createFakeHls()
+    const screen = await render(<RtspVideoViewer loadHls={hls.loader} />)
+
+    const overlay = screen.container.querySelector('.overlay')
+    expect(overlay).not.toBeNull()
+    expect(getComputedStyle(overlay!).pointerEvents).toBe('none')
+  })
+
   it('says "Reconnecting…" and retries the load on a fatal network error', async () => {
     const hls = createFakeHls()
     const screen = await render(<RtspVideoViewer loadHls={hls.loader} />)

@@ -15,6 +15,8 @@ export type PlaybackState =
   | 'buffering'
   | 'reconnecting'
   | 'recovering'
+  /** Autoplay was refused; only a real user gesture starts playback now. */
+  | 'paused'
   /** No MSE and no native HLS — nothing we can do. */
   | 'unsupported'
 
@@ -92,8 +94,19 @@ export function useHlsPlayer({ src, loadHls = defaultLoader }: UseHlsPlayerOptio
       timers.add(timer)
     }
 
-    // Autoplay can be refused (no user gesture); the controls are still there.
-    const play = (): void => void video.play().catch(() => {})
+    /**
+     * Autoplay can be refused — iOS Low Power Mode blocks it even for a muted
+     * video. Nothing here recovers that: the watchdog deliberately ignores a
+     * paused element, so without surfacing it the page would spin "Warming up
+     * the coop…" forever over a stream that plays fine the moment it's tapped.
+     * Only NotAllowedError means "policy said no"; an AbortError just means a
+     * newer load superseded this play(), which self-heals.
+     */
+    const play = (): void => {
+      void video.play().catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'NotAllowedError') setState('paused')
+      })
+    }
 
     /** Any real playback progress means we're healthy. */
     const markProgress = (): void => {

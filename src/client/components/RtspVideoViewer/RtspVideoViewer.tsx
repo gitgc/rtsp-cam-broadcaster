@@ -8,8 +8,17 @@ const OVERLAY_MESSAGE: Record<Exclude<PlaybackState, 'playing'>, string> = {
   buffering: 'Buffering…',
   reconnecting: 'Reconnecting…',
   recovering: 'Recovering…',
+  paused: 'Tap to play',
   unsupported: 'Your browser can’t play this stream.',
 }
+
+/** States where we're still working on it — the rest would be a lie. */
+const SPINNING: ReadonlySet<PlaybackState> = new Set<PlaybackState>([
+  'connecting',
+  'buffering',
+  'reconnecting',
+  'recovering',
+])
 
 export interface RtspVideoViewerProps {
   /** HLS playlist URL. */
@@ -42,7 +51,7 @@ export function RtspVideoViewer({
       {/* Kept mounted and faded out rather than unmounted, so the <output>
           stays a stable live region across state changes. */}
       <div className={message === null ? 'overlay hidden' : 'overlay'}>
-        {state !== 'unsupported' && <div className="spinner" aria-hidden="true" />}
+        {SPINNING.has(state) && <div className="spinner" aria-hidden="true" />}
         <output className="overlay-message">{message ?? ''}</output>
       </div>
     </div>

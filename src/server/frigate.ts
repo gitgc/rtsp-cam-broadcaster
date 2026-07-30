@@ -30,9 +30,10 @@ export const SNAPSHOT_HASH_LENGTH = 16
  * every browser and CDN edge still holds the previous id 1 for a year. Hashing
  * the bytes means a URL can only ever refer to the image it was minted for.
  *
- * It also means a restart that re-ingests the same retained snapshots produces
- * the same URLs, so those edge cache entries stay warm instead of forcing the
- * origin to re-serve everything after each deploy.
+ * It also means the URL depends on nothing but the bytes, so an image Frigate
+ * republishes after a restart (it does republish unchanged frames — see the
+ * dedup guard in ingestSnapshot) lands back on the URL the edge already has
+ * cached, instead of forcing the origin to re-serve it under a new name.
  */
 function snapshotHash(image: Buffer): string {
   return createHash('sha256').update(image).digest('hex').slice(0, SNAPSHOT_HASH_LENGTH)
@@ -86,7 +87,7 @@ export interface Sighting {
 
 /** The read side the HTTP server needs — lets tests inject a stub. */
 export interface DetectionSource {
-  /** Every stored snapshot, newest first; undated ones last. */
+  /** Every stored snapshot, newest first. */
   list(): Sighting[]
   getImage(label: string, hash: string): Buffer | undefined
 }

@@ -8,7 +8,7 @@ import './RecentlySpotted.css'
  * How many cards the grid renders.
  *
  * The server can hold many more — 5 snapshots per label across every label it
- * tracks is 45 with the default set — but this is a glance-at-it panel under
+ * tracks is 50 with the default set — but this is a glance-at-it panel under
  * the video, not an archive. Capping it bounds both the scrolling and the image
  * bytes a visitor pulls.
  */
