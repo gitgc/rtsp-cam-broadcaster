@@ -18,7 +18,6 @@ services:
     container_name: cam-broadcaster
     restart: unless-stopped
     env_file: .env
-    # HLS segments — the only high-volume writes — live in RAM here, not on disk.
     tmpfs:
       - /hls
     logging:
@@ -29,11 +28,30 @@ services:
       autoheal-app: true
     healthcheck:
       <<: *health_check_defaults
-      # Compose interpolates ${PORT} from the project .env at parse time — NOT
-      # from the container's environment — so the default matters: without it an
-      # .env that omits PORT yields "http://127.0.0.1:/healthz", curl fails
-      # every time, and autoheal restarts a perfectly healthy container forever.
       test: [ "CMD", "curl", "-fsS", "http://127.0.0.1:${PORT:-8080}/healthz" ]
+
+  # The tunnel's public hostname in the Cloudflare dashboard must point at 
+  # http://cam-broadcaster:8080 — NOT localhost:8080. See "Create a Cloudflare 
+  # Tunnel" in the README.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.7.3
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --metrics 127.0.0.1:20241 run --protocol ${TUNNEL_PROTOCOL:-http2}
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env — see the README}
+    labels:
+      autoheal-app: true
+    healthcheck:
+      <<: *health_check_defaults
+      test: [ "CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:20241", "ready" ]
+    # Deliberately NOT `condition: service_healthy`: the app only reports healthy
+    # once ffmpeg is producing segments, and a camera outage must not take the
+    # whole site down. Better to serve the page and let the player say so.
+    depends_on:
+      - cam-broadcaster
+    logging:
+      <<: *default_logging
 
   autoheal:
     image: willfarrell/autoheal:latest

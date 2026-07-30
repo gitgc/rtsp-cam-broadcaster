@@ -7,8 +7,6 @@ export function makeCfg(overrides: Partial<Config> = {}): Config {
     port: 0,
     rtspUrl: 'rtsp://host/1',
     rtspTransport: 'tcp',
-    tunnelToken: 't',
-    tunnelProtocol: 'http2',
     hlsDir: '/nonexistent',
     hlsSegmentTime: 2,
     hlsListSize: 6,

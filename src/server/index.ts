@@ -1,14 +1,11 @@
 /**
- * Entry point. Starts the HTTP server, then supervises the ffmpeg (RTSP→HLS)
- * and cloudflared (tunnel) child processes, wiring up a segment watchdog and
- * graceful shutdown. Node is PID 1's child (via tini), so signals arrive here.
+ * Entry point. Starts the HTTP server, then supervises the ffmpeg (RTSP→HLS).
  */
 
 import { existsSync } from 'node:fs'
 import { loadConfig, redactRtsp } from './config.js'
 import { buildServer } from './server.js'
 import { createFfmpegSupervisor, startSegmentWatchdog } from './media.js'
-import { createTunnelSupervisor } from './tunnel.js'
 import { FrigateEvents } from './frigate.js'
 
 /**
@@ -50,12 +47,10 @@ async function main(): Promise<void> {
   }
 
   const ffmpeg = createFfmpegSupervisor(cfg, log.child({ module: 'ffmpeg' }))
-  const tunnel = createTunnelSupervisor(cfg, log.child({ module: 'cloudflared' }))
 
   await app.listen({ host: '0.0.0.0', port: cfg.port })
   await ffmpeg.start()
   const stopWatchdog = startSegmentWatchdog(cfg, ffmpeg, log.child({ module: 'watchdog' }))
-  await tunnel.start()
 
   let shuttingDown = false
   const shutdown = async (signal: string): Promise<void> => {
@@ -63,7 +58,7 @@ async function main(): Promise<void> {
     shuttingDown = true
     log.info(`received ${signal}, shutting down`)
     stopWatchdog()
-    await Promise.allSettled([tunnel.stop(), ffmpeg.stop(), frigate?.stop() ?? Promise.resolve()])
+    await Promise.allSettled([ffmpeg.stop(), frigate?.stop() ?? Promise.resolve()])
     await app.close()
     process.exit(0)
   }

@@ -11,10 +11,10 @@ Paul's chickens.
 ```text
   generic RTSP cam feed ──► ffmpeg (H.264 remux, no re-encode) ──► HLS segments (tmpfs)
                                                                   │
-                                          Fastify server :8080 ◄──┘
-                                                  │
-                              cloudflared tunnel ──┴──► Cloudflare edge (caches
-                                                        .ts segments) ──► viewers
+   ┌── cam-broadcaster container ──────  Fastify server :8080 ◄──┘
+   │                                             │
+   └── cloudflared container ─── tunnel ─────────┴──► Cloudflare edge (caches
+                                                      .ts segments) ──► viewers
 ```
 
 Because the video is already H.264, ffmpeg just **remuxes** it (`-c:v copy`) —
@@ -46,11 +46,16 @@ flat even if the site goes viral.
 4. Go to the tunnel's **Public Hostname** tab → **Add a public hostname**:
    - **Subdomain / domain:** e.g. `cluckcam.org` (or `www`)
    - **Type:** `HTTP`
-   - **URL:** `localhost:8080`
+   - **URL:** `cam-broadcaster:8080`
 5. Save. Cloudflare creates the DNS record for you automatically.
 
-> You run the connector from _this_ container — not the one-liner Cloudflare
-> shows. All you need from that screen is the token.
+> **Why `cam-broadcaster:8080` and not `localhost:8080`?** The connector runs in
+> its own container and reaches the app over the Compose network, where the
+> service name is the hostname. `localhost` inside the cloudflared container is
+> the cloudflared container.
+>
+> You run the connector from _this_ stack — not the one-liner Cloudflare shows.
+> All you need from that screen is the token.
 
 ### 2. Configure
 
@@ -76,16 +81,31 @@ docker compose logs -f
 Then open **[cluckcam.org](https://cluckcam.org)**. First frames appear a few
 seconds after ffmpeg connects to the camera. 🎉
 
+Two containers come up: `cam-broadcaster` (ffmpeg + the web server) and
+`cloudflared` (the tunnel), plus `autoheal` to restart the app if it goes
+unhealthy.
+
+> **Upgrading from a single-container release?** The tunnel used to run inside
+> the app container, so its public hostname pointed at `localhost:8080`. It now
+> runs beside the app and must point at `cam-broadcaster:8080` — update it in
+> the Cloudflare dashboard (Zero Trust → Networks → Tunnels → your tunnel →
+> Public Hostname) or the site will 502 after the upgrade. Nothing in `.env`
+> changes.
+
 ---
 
 ## Configuration
 
-All via environment variables (see [.env.example](.env.example)):
+All via environment variables (see [.env.example](.env.example)). `TUNNEL_TOKEN`
+and `TUNNEL_PROTOCOL` are read by **Docker Compose** and passed to the
+`cloudflared` container — the app never sees them; everything else is read by
+the app itself.
 
 | Variable            | Default              | Description                                     |
 | ------------------- | -------------------- | ----------------------------------------------- |
 | `RTSP_URL`          | **required**         | Camera RTSP URL. Supports `${VAR}` expansion.   |
-| `TUNNEL_TOKEN`      | **required**         | Cloudflare Tunnel token.                        |
+| `TUNNEL_TOKEN`      | **required**         | Cloudflare Tunnel token (used by Compose).      |
+| `TUNNEL_PROTOCOL`   | `http2`              | Tunnel transport (used by Compose).             |
 | `STREAM_TITLE`      | `Paul's Chickens`    | Page title / heading.                           |
 | `STREAM_TAGLINE`    | `Live from the coop` | Sub-heading + meta description.                 |
 | `ENABLE_AUDIO`      | `false`              | Include camera audio (transcoded to AAC).       |
@@ -212,12 +232,26 @@ unaffected.
 
 ## How it stays alive
 
-- **ffmpeg** and **cloudflared** are each supervised: if either dies, it's
-  restarted with exponential backoff.
+- **ffmpeg** is supervised in-process: if it dies, it's restarted with
+  exponential backoff. That supervision is application-aware — each run gets
+  fresh segment filenames, the segment directory is wiped first, and the
+  watchdog below can force a restart.
+- **cloudflared** runs as its own container, so `restart: unless-stopped` covers
+  it dying. For the worse case — the process alive but no longer serving —
+  its healthcheck runs `cloudflared tunnel ready`, which calls the tunnel's own
+  `/ready` endpoint and fails unless there's a live connection to the edge.
+  `autoheal` then restarts it. (The image is distroless, so the probe has to be
+  the `cloudflared` binary itself; there's no shell or curl in there.)
 - A **watchdog** restarts ffmpeg if the playlist stops advancing (camera drops
   the connection without closing the socket — common on cheap cameras).
 - **`/healthz`** returns `200` only when fresh segments exist, driving the
   Docker `HEALTHCHECK`.
+- **autoheal** restarts any container that reports unhealthy — Docker's restart
+  policy reacts to a process _exiting_, never to one that's merely stopped
+  working. Both `cam-broadcaster` and `cloudflared` carry the `autoheal-app`
+  label. Failure has to persist ~2.5 min (5 × 30s) before it fires, which is
+  deliberate: cloudflared reconnects to the edge routinely and shouldn't be
+  killed mid-reconnect.
 - The page **auto-recovers**: it shows a "warming up / reconnecting" overlay and
   retries on its own — no manual refresh needed.
 
@@ -225,7 +259,9 @@ unaffected.
 
 ## Local development
 
-Requires `ffmpeg` and `cloudflared` on your PATH.
+Requires `ffmpeg` on your PATH. No tunnel is involved — `npm run dev` serves the
+app locally, so `TUNNEL_TOKEN` isn't needed and `RTSP_URL` is the only variable
+you must set.
 
 ```bash
 npm install
@@ -261,7 +297,7 @@ src/
 │   ├── hooks/                 useHlsPlayer, useViewerCount, useDetections
 │   ├── lib/                   helpers: api.ts, time, labels, bootstrap
 │   └── index.html             Vite entry; the server templates it at boot
-├── server/                    Fastify + ffmpeg/cloudflared supervision -> dist/server
+├── server/                    Fastify + ffmpeg supervision -> dist/server
 └── shared/                    types both sides import (the wire contract)
 ```
 
@@ -329,8 +365,8 @@ isn't on the critical path.
 - The container runs as root for simplicity (no ports are exposed; all ingress
   is via the tunnel). To run non-root, add a user in the `Dockerfile` and mount
   `/hls` as a writable tmpfs for that user.
-- `cloudflared` is pulled as `latest` at build time. Pin it by editing the
-  download URL in the `Dockerfile` to a specific release tag for reproducibility.
+- `cloudflared` runs from Cloudflare's official image, **pinned** by tag in
+  `docker-compose.yml`. Bump that tag to upgrade; it never auto-updates.
 - WebRTC (sub-second latency) is intentionally **not** used: it can't traverse a
   plain Cloudflare Tunnel without Cloudflare Calls/TURN. HLS is the right fit
   here — cacheable, firewall-friendly, and plenty good for a chicken cam.

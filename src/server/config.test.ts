@@ -4,14 +4,12 @@ import { expandEnv, loadConfig, redactRtsp } from './config.js'
 const SAVED = { ...process.env }
 const APP_VARS = [
   'RTSP_URL',
-  'TUNNEL_TOKEN',
   'PORT',
   'HLS_DIR',
   'HLS_SEGMENT_TIME',
   'HLS_LIST_SIZE',
   'ENABLE_AUDIO',
   'RTSP_TRANSPORT',
-  'TUNNEL_PROTOCOL',
   'STREAM_TITLE',
   'STREAM_TAGLINE',
   'LOG_LEVEL',
@@ -74,28 +72,19 @@ describe('redactRtsp', () => {
 
 describe('loadConfig', () => {
   it('throws when RTSP_URL is missing', () => {
-    process.env.TUNNEL_TOKEN = 't'
     expect(() => loadConfig()).toThrow(/RTSP_URL/)
-  })
-
-  it('throws when TUNNEL_TOKEN is missing', () => {
-    process.env.RTSP_URL = 'rtsp://host/1'
-    expect(() => loadConfig()).toThrow(/TUNNEL_TOKEN/)
   })
 
   it('rejects a non-rtsp URL', () => {
     process.env.RTSP_URL = 'http://host/1'
-    process.env.TUNNEL_TOKEN = 't'
     expect(() => loadConfig()).toThrow(/rtsp/i)
   })
 
   it('applies sensible defaults', () => {
     process.env.RTSP_URL = 'rtsp://host:554/1'
-    process.env.TUNNEL_TOKEN = 't'
     const cfg = loadConfig()
     expect(cfg.port).toBe(8080)
     expect(cfg.rtspTransport).toBe('tcp')
-    expect(cfg.tunnelProtocol).toBe('http2') // firewall-friendly default
     expect(cfg.enableAudio).toBe(false)
     expect(cfg.hlsSegmentTime).toBe(2)
     expect(cfg.hlsDir.length).toBeGreaterThan(0)
@@ -105,13 +94,11 @@ describe('loadConfig', () => {
     process.env.CAM_USER = 'paul'
     process.env.CAM_PASS = 'sec'
     process.env.RTSP_URL = 'rtsp://${CAM_USER}:${CAM_PASS}@host:554/1'
-    process.env.TUNNEL_TOKEN = 't'
     expect(loadConfig().rtspUrl).toBe('rtsp://paul:sec@host:554/1')
   })
 
   it('parses booleans and numbers', () => {
     process.env.RTSP_URL = 'rtsp://host/1'
-    process.env.TUNNEL_TOKEN = 't'
     process.env.ENABLE_AUDIO = 'true'
     process.env.PORT = '9000'
     process.env.HLS_LIST_SIZE = '12'
@@ -123,7 +110,6 @@ describe('loadConfig', () => {
 
   it('leaves Frigate disabled unless MQTT_HOST is set', () => {
     process.env.RTSP_URL = 'rtsp://host/1'
-    process.env.TUNNEL_TOKEN = 't'
     const cfg = loadConfig()
     expect(cfg.frigate.enabled).toBe(false)
     expect(cfg.frigate.labels).toEqual([
@@ -142,7 +128,6 @@ describe('loadConfig', () => {
 
   it('enables Frigate and parses MQTT settings when MQTT_HOST is set', () => {
     process.env.RTSP_URL = 'rtsp://host/1'
-    process.env.TUNNEL_TOKEN = 't'
     process.env.MQTT_HOST = 'nvr.coia.io'
     process.env.MQTT_PORT = '1833'
     process.env.FRIGATE_CAMERA = 'roaming'
